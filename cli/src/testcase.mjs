@@ -1,5 +1,6 @@
 // @ts-check
 // Đọc test case markdown và kiểm tra cú pháp (lint-tc). Định dạng: docs/02-testcase-format.md.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
@@ -29,7 +30,7 @@ export function parseTestcase(cfg, text) {
   const L = cfg.labels;
   const OUT_OF_SCOPE = new RegExp(`^##\\s+${esc(L.outOfScope)}\\s*$`);
   const FIELD = new RegExp(
-    `^-\\s+(${[L.trace, L.persona, L.screens, L.priority].map(esc).join("|")})\\s*:\\s*(.*)$`,
+    `^-\\s+(${[L.trace, L.persona, L.screens, L.priority, L.layer].map(esc).join("|")})\\s*:\\s*(.*)$`,
   );
   const lines = text.split("\n");
   let fm = null;
@@ -81,6 +82,8 @@ export function parseTestcase(cfg, text) {
             screens: [],
             persona: null,
             priority: null,
+            layer: "e2e",
+            layerLine: null,
             hasExpected: false,
           }
         : null;
@@ -113,7 +116,10 @@ export function parseTestcase(cfg, text) {
         cur.screens.push(...extractTraces(cfg, v));
       else if (field[1] === L.persona)
         cur.persona = v.replace(/`/g, "") || null;
-      else cur.priority = v || null;
+      else if (field[1] === L.layer) {
+        cur.layer = v.replace(/`/g, "").trim().toLowerCase() || "e2e";
+        cur.layerLine = i + 1;
+      } else cur.priority = v || null;
       continue;
     }
     if (line.trim().startsWith("|")) {
@@ -134,6 +140,22 @@ export function loadPersonaNames(cfg) {
   if (!fs.existsSync(abs)) return null;
   const data = YAML.parse(fs.readFileSync(abs, "utf8")) || {};
   return Array.isArray(data) ? data.map(String) : Object.keys(data);
+}
+
+/**
+ * Hash nội dung TC lúc duyệt: cả file, bỏ các dòng frontmatter do việc duyệt ghi (status, reviewer, approvedHash) và
+ * khoảng trắng cuối dòng. `kit approve --testcase` ghi vào `approvedHash`; lint so lại để bắt TC bị sửa sau khi duyệt.
+ */
+export function approvalHash(text) {
+  const lines = text.split("\n");
+  let fmEnd = -1;
+  if (lines[0]?.trim() === "---") fmEnd = lines.findIndex((l, i) => i > 0 && l.trim() === "---");
+  const norm = lines
+    .filter((l, i) => !(i > 0 && i < fmEnd && /^(status|reviewer|approvedHash)\s*:/.test(l)))
+    .map((l) => l.trimEnd())
+    .join("\n")
+    .trim();
+  return crypto.createHash("sha256").update(norm).digest("hex").slice(0, 16);
 }
 
 /**
@@ -167,13 +189,20 @@ export function lintTestcase(cfg, file) {
     if (fm.status === L.approved) {
       if (!fm.reviewer) err(1, `TC ${L.approved} phải có "reviewer"`);
       if (!fm.specHash) err(1, `TC ${L.approved} phải có "specHash"`);
+      if (!fm.approvedHash)
+        err(1, `TC ${L.approved} thiếu "approvedHash" — người review duyệt bằng: kit approve ${feature || "<mã>"} --testcase`);
+      else if (String(fm.approvedHash) !== approvalHash(text))
+        err(1, `TC đã sửa sau khi duyệt (approvedHash lệch) — người review xem lại rồi: kit approve ${feature || "<mã>"} --testcase`);
     } else if (!fm.specHash)
-      warn(1, 'Chưa có "specHash" — chạy `taf spec <mã> --hash` để lấy');
+      warn(1, 'Chưa có "specHash" — chạy `kit spec <mã> --hash` để lấy');
     if (fm.persona && personas && !personas.includes(fm.persona))
       err(1, `Persona "${fm.persona}" không có trong ${personaFile}`);
   }
-  if (parsed.cases.length === 0)
-    err(1, 'Không có test case nào (heading "## TC-…")');
+  if (parsed.cases.length === 0) {
+    if (parsed.outOfScope.length)
+      warn(1, "Không có TC e2e — mọi mã nằm ở mục ngoài phạm vi e2e (feature không kiểm được qua giao diện), không cần script");
+    else err(1, 'Không có test case nào (heading "## TC-…")');
+  }
   const seen = new Set();
   const scope = feature ? scopeOf(cfg, feature) : null;
   for (const c of parsed.cases) {
@@ -189,6 +218,13 @@ export function lintTestcase(cfg, file) {
       if (feature && !t.startsWith(feature) && !t.startsWith(`${scope}-`))
         warn(c.line, `${c.id}: mã truy vết ${t} không thuộc ${feature}`);
     }
+    if (!["e2e", "api"].includes(c.layer))
+      err(
+        c.layerLine || c.line,
+        c.layer === "unit"
+          ? `${c.id}: tầng unit không viết thành TC — đưa mã vào mục "${L.outOfScope}" (kiểm ở unit test)`
+          : `${c.id}: "${L.layer}" phải là e2e hoặc api`,
+      );
     if (!c.hasExpected)
       err(c.line, `${c.id}: thiếu bảng có cột "${L.expected}"`);
     if (c.persona && personas && !personas.includes(c.persona))

@@ -2,7 +2,7 @@
 feature: XX-F01
 spec: docs/features/addon/XX-example/FSD-example.md
 specHash: ""                 # taf điền khi sinh TC
-status: Nháp                 # Nháp | Đã duyệt — chỉ người review đổi
+status: Nháp                 # Nháp | Đã duyệt — người review duyệt bằng kit approve <MÃ> --testcase
 reviewer: ""
 persona: sale                # mặc định cho cả file
 ---

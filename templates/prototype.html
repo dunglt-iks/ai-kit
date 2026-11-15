@@ -1,0 +1,97 @@
+<!--
+  Khuôn prototype của ai-kit (spec.templates.prototype). /prototype chép khuôn này thành
+  <thư mục module>/PROTOTYPE-<tên>.html rồi điền màn hình từ FSD.
+  - HTML/CSS/JS thuần, không build, không gọi API. Dữ liệu là dữ liệu mẫu.
+  - Một <section class="screen"> cho mỗi màn hình (id = mã SCR viết thường), một <dialog> cho mỗi hộp thoại.
+  - Mỗi thành phần đánh số trong wireframe mang data-ref="<mã SCR>-<số>".
+  - Giữ thanh PROTOTYPE: không ai được nhầm đây là UI thật. Spec luôn thắng prototype.
+  - Dòng <!-- ai-kit:prototype MÃ=hash … --> (nếu có) do `kit approve <mã> --prototype` ghi — không sửa tay.
+-->
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prototype — <Tên module> (<MOD>)</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #fff; --text: #1f2937; --muted: #6b7280;
+    --border: #e5e7eb; --primary: #2563eb; --danger: #dc2626;
+  }
+  html[data-theme='dark'] {
+    --bg: #0f172a; --card: #1e293b; --text: #e5e7eb; --muted: #94a3b8; --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .proto-bar {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px; font-size: 12px;
+    background: repeating-linear-gradient(45deg, #fff8e1, #fff8e1 10px, #fffbea 10px, #fffbea 20px);
+    border-bottom: 1px dashed #d9b100; color: #6b5900;
+  }
+  .proto-bar nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  .proto-bar button { font: inherit; padding: 2px 8px; border: 1px solid #d9b100; background: #fff; cursor: pointer; }
+  .proto-bar button[aria-current='true'] { background: #d9b100; color: #fff; }
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  .screen { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .screen.active { display: block; }
+  .btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.danger { color: var(--danger); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  dialog { border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); min-width: 360px; }
+  [data-ref]:hover { outline: 1px dashed #d9b100; outline-offset: 2px; }
+  .toast { position: fixed; bottom: 16px; right: 16px; padding: 8px 12px; background: #111827; color: #fff; border-radius: 6px; display: none; }
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <strong>PROTOTYPE</strong> <span>— minh hoạ tĩnh, không phải UI thật. Spec: FSD-&lt;tên&gt;.md v&lt;x.y&gt;</span>
+  <nav id="screen-nav"></nav>
+  <button type="button" onclick="toggleTheme()">Sáng/tối</button>
+</div>
+
+<main>
+  <!-- Mỗi màn hình một section. data-title hiện trên thanh chuyển màn. -->
+  <section class="screen" id="mod-f01-scr01" data-title="MOD-F01-SCR01 <Tên màn>">
+    <h2 data-ref="MOD-F01-SCR01-1">&lt;Tiêu đề&gt;</h2>
+    <button class="btn primary" data-ref="MOD-F01-SCR01-2" onclick="openDialog('dlg-example')">+ Thêm</button>
+  </section>
+
+  <dialog id="dlg-example">
+    <h3>&lt;Hộp thoại&gt;</h3>
+    <p>Nhánh A1: …</p>
+    <button class="btn" onclick="this.closest('dialog').close()">Huỷ</button>
+    <button class="btn primary" onclick="this.closest('dialog').close(); toast('Đã lưu')">Lưu</button>
+  </dialog>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+  const screens = [...document.querySelectorAll('.screen')];
+  const nav = document.getElementById('screen-nav');
+  function show(id) {
+    screens.forEach((s) => s.classList.toggle('active', s.id === id));
+    nav.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+    history.replaceState(null, '', '#' + id);
+  }
+  screens.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = s.dataset.title || s.id; b.dataset.id = s.id;
+    b.onclick = () => show(s.id);
+    nav.appendChild(b);
+  });
+  show(location.hash.slice(1) || (screens[0] && screens[0].id));
+  function openDialog(id) { document.getElementById(id).showModal(); }
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.style.display = 'block';
+    setTimeout(() => (t.style.display = 'none'), 2000);
+  }
+  function toggleTheme() {
+    const h = document.documentElement;
+    h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark';
+  }
+</script>
+</body>
+</html>

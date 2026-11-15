@@ -1,0 +1,110 @@
+name: ai-kit e2e
+description: >-
+  Điểm cắm của ai-kit vào CI của dự án. Gọi sau bước dựng app của dự án (nếu chạy test). Lấy mã feature của PR → gate
+  (test case + script) → chạy run.command vào app → báo cáo (comment PR, nhãn chặn, đóng issue đã hết). Không gọi AI,
+  không ghi bug mới — phân loại + ghi bug làm ở máy bằng /e2e-triage.
+inputs:
+  scope:
+    description: 'none (chỉ gate) | changed (script các feature của PR) | all | danh sách mã/tên script cách nhau bằng dấu cách'
+    default: changed
+  base-url:
+    description: Địa chỉ app dự án đã dựng (→ biến run.baseUrlEnv cho lệnh test)
+    default: ''
+  env:
+    description: Nhãn môi trường trong báo cáo / issue (pr, dev, staging…)
+    default: pr
+  grep:
+    description: Chỉ chạy test có tên khớp mẫu
+    default: ''
+  gate:
+    description: 'auto (gate trừ scope all) | true | false'
+    default: auto
+  close-fixed:
+    description: '"true" = đóng issue có test đã pass lại (hồi quy trên nhánh chính)'
+    default: 'false'
+  fail-on:
+    description: 'gate | test | never — khi nào bước này đỏ'
+    default: test
+  root:
+    description: Thư mục dự án (nơi có ai-kit.yml), tính từ gốc repo
+    default: .
+  shard:
+    description: 'Chạy phần i trong n (vd 1/4) — dùng với matrix; gộp ở job sau bằng kit report --results … --strict'
+    default: ''
+  history:
+    description: '"true" = giữ lịch sử kết quả (run.history) giữa các lần chạy bằng cache — cho kit flaky'
+    default: 'true'
+  artifact:
+    description: Tên artifact chứa thư mục kết quả (báo cáo md, JSON, trace, ảnh) — /e2e-triage <run-id> tải về. Trống = không upload
+    default: e2e-results
+outputs:
+  features:
+    description: Mảng JSON mã feature trong phạm vi
+    value: ${{ steps.e2e.outputs.features }}
+  gate:
+    description: 'true | false | skipped'
+    value: ${{ steps.e2e.outputs.gate }}
+  failed:
+    description: Số test fail
+    value: ${{ steps.e2e.outputs.failed }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Cài ai-kit
+      shell: bash
+      run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../.."
+    - name: Đường dẫn (kết quả, lịch sử)
+      id: paths
+      shell: bash
+      working-directory: ${{ inputs.root }}
+      env:
+        ROOT: ${{ inputs.root }}
+      run: |
+        # thư mục chứa reports/ (thường là e2e/test-results): báo cáo md, JSON, trace, ảnh; và file lịch sử
+        node --input-type=module -e "import('$GITHUB_ACTION_PATH/../../cli/src/config.mjs').then(m => { const c = m.loadConfig(); console.log('dir=' + process.env.ROOT + '/' + c.run.reportsDir.replace(/\/[^/]+\/?$/, '')); console.log('history=' + (c.run.history ? process.env.ROOT + '/' + c.run.history : '')) })" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache/restore@v4
+      if: inputs.history == 'true' && steps.paths.outputs.history != ''
+      with:
+        path: ${{ steps.paths.outputs.history }}
+        key: ai-kit-e2e-history-${{ inputs.env }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: ai-kit-e2e-history-${{ inputs.env }}-
+    - name: kit e2e
+      id: e2e
+      shell: bash
+      working-directory: ${{ inputs.root }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        SCOPE: ${{ inputs.scope }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        CLOSE_FIXED: ${{ inputs.close-fixed }}
+        BASE_URL: ${{ inputs.base-url }}
+        KIT_ENV: ${{ inputs.env }}
+        GREP: ${{ inputs.grep }}
+        GATE: ${{ inputs.gate }}
+        SHARD: ${{ inputs.shard }}
+      run: |
+        read -r -a scope <<< "$SCOPE"
+        args=(e2e "${scope[@]}" --publish github --env "$KIT_ENV" --fail-on "$FAIL_ON")
+        [ -n "$BASE_URL" ] && args+=(--base-url "$BASE_URL")
+        [ -n "$GREP" ] && args+=(--grep "$GREP")
+        [ "$GATE" = "true" ] && args+=(--gate)
+        [ "$GATE" = "false" ] && args+=(--no-gate)
+        [ "$CLOSE_FIXED" = "true" ] && args+=(--close-fixed)
+        [ -n "$SHARD" ] && args+=(--shard "$SHARD")
+        node "$GITHUB_ACTION_PATH/../../cli/bin/kit.mjs" "${args[@]}"
+    - uses: actions/cache/save@v4
+      if: always() && inputs.history == 'true' && inputs.shard == '' && steps.paths.outputs.history != ''
+      with:
+        path: ${{ steps.paths.outputs.history }}
+        key: ai-kit-e2e-history-${{ inputs.env }}-${{ github.run_id }}-${{ github.run_attempt }}
+    - uses: actions/upload-artifact@v4
+      if: always() && inputs.artifact != ''
+      with:
+        name: ${{ inputs.artifact }}
+        path: ${{ steps.paths.outputs.dir }}
+        retention-days: 7
+        if-no-files-found: ignore
+        include-hidden-files: false   # không đưa .auth/ (phiên đăng nhập) lên artifact

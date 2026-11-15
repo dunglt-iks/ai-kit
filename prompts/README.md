@@ -1,9 +1,9 @@
 # prompts/
 
-Prompt cho Claude. Mỗi prompt chạy với cwd là repo dự án và đọc `e2e/taf.config.yml`.
+Prompt cho Claude, chạy **ở máy** qua `/testcase`, `/e2e-script`, `/e2e-triage` (CI không gọi AI). Mỗi prompt chạy với cwd là repo dự án và đọc `ai-kit.yml`.
 
 | File | Đầu vào → đầu ra | Ràng buộc bắt buộc | Có |
 |---|---|---|---|
-| `testcase.md` | `taf spec --json` → TC markdown (status nháp) | Từ chối khi spec chưa duyệt; phủ mọi mã trong `required`; không tự đặt đã duyệt | ✓ |
+| `testcase.md` | `kit spec --json` → TC markdown (status nháp) | Từ chối khi spec chưa duyệt; phủ mọi mã trong `required`; không tự đặt đã duyệt | ✓ |
 | `script.md` | TC đã duyệt + `scripts.guide` → script (+ page object) | Chỉ ghi vào `allowedPaths`; qua `check-script`, `check-paths`, `lint-script`; không sửa script cho khớp app sai | ✓ |
 | `triage.md` | Lỗi + ảnh + TC + spec + diff → `triage.json`, bản sửa script | Không sửa code ứng dụng; không sửa script cho khớp app sai; sửa script tối đa 2 vòng | ✓ |

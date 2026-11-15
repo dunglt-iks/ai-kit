@@ -1,8 +1,11 @@
 // @ts-check
-// Gate: một feature chỉ qua khi có TC đã duyệt, không lỗi thời và phủ đủ US/A/E/SCR.
+// Gate: một feature chỉ qua khi có TC đã duyệt, không lỗi thời, phủ đủ US/A/E/SCR, và (gate.requireScript)
+// script e2e đã sinh ở máy, khớp TC — CI không sinh script.
 // Xem docs/02-testcase-format.md §3–4 và docs/04-ci-workflow.md §2.
 import fs from "node:fs";
 import { rel } from "./config.mjs";
+import { testcaseAuthors } from "./approve.mjs";
+import { checkScript } from "./scripts.mjs";
 import { lintTestcase, testcasePath } from "./testcase.mjs";
 
 /**
@@ -34,6 +37,10 @@ export function gateFeature(cfg, code) {
       warnings,
       tcFile,
     };
+  if (feature.duplicates?.length)
+    problems.push(
+      `Mã ${code} khai ở nhiều chỗ: ${feature.duplicates.join(", ")} — đổi mã một bên (kit next-code)`,
+    );
   if (!feature.approved)
     problems.push(
       `Spec chưa duyệt (Spec: ${feature.status ?? "không rõ"} trong ${feature.statusFile ?? "PRD"})`,
@@ -50,9 +57,14 @@ export function gateFeature(cfg, code) {
       `${tcFile}:${i.line} ${i.msg}`,
     );
   const fm = parsed.frontmatter || {};
+  if (fm.status === L.approved && cfg.gate.allowSelfApproval === false && fm.reviewer) {
+    const authors = testcaseAuthors(cfg, tcAbs);
+    if (authors.includes(String(fm.reviewer)))
+      problems.push(`Test case do chính ${fm.reviewer} viết / sửa rồi tự duyệt — cần người khác: kit approve ${code} --testcase`);
+  }
   if (fm.status && fm.status !== L.approved)
     problems.push(
-      `Test case còn ${fm.status} — người review đổi \`status: ${L.approved}\``,
+      `Test case còn ${fm.status} — người review đọc rồi: kit approve ${code} --testcase`,
     );
   if (fm.specHash && fm.specHash !== feature.hash) {
     problems.push(
@@ -72,6 +84,15 @@ export function gateFeature(cfg, code) {
     problems.push(
       `Chưa phủ ${missing.length}/${required.length} mã: ${missing.join(", ")}`,
     );
+  // Script chỉ xét khi TC đã ổn (duyệt, không lỗi thời, phủ đủ) — tránh báo chồng lỗi.
+  // Không có TC e2e nào còn hiệu lực (feature chỉ kiểm ngoài e2e) thì không đòi script
+  const activeTc = parsed.cases.some((c) => !c.deprecated);
+  if (cfg.gate.requireScript !== false && !problems.length && activeTc) {
+    const sc = checkScript(cfg, code);
+    for (const e of sc.errors)
+      problems.push(`Script \`${sc.file}\`: ${e} — chạy \`/e2e-script ${code}\` ở máy rồi push`);
+    sc.warnings.forEach((w) => warnings.push(`Script \`${sc.file}\`: ${w}`));
+  }
   const known = new Set(required);
   for (const t of covered) {
     if (t !== code && t.startsWith(`${code}-`) && !known.has(t))
@@ -100,10 +121,10 @@ export function gate(cfg, codes) {
 
 export const GATE_MARKER = "<!-- taf:gate -->";
 
-export function gateMarkdown(report) {
+export function gateMarkdown(report, label = "e2e-blocked") {
   const head = report.ok
     ? "## E2E-TAF · Gate ✓"
-    : "## E2E-TAF · Gate ✘ — chưa đủ test case";
+    : "## E2E-TAF · Gate ✘ — chưa đủ test case / script";
   const rows = report.results.map((r) => {
     const cov = r.coverage
       ? `${r.coverage.covered}/${r.coverage.required}`
@@ -120,7 +141,7 @@ export function gateMarkdown(report) {
     });
   const tail = report.ok
     ? ""
-    : "\n\n> PR này **không được merge** khi còn nhãn `e2e-blocked` (repo chưa bật required check, đây là chặn mềm).";
+    : `\n\n> PR này **không được merge** khi còn nhãn \`${label}\` (repo chưa bật required check, đây là chặn mềm).`;
   return (
     [
       GATE_MARKER,

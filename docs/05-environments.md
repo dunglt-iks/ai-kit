@@ -1,27 +1,32 @@
-# 05 — Môi trường, tài khoản, persona: phần của dự án
+# 05 — Phạm vi TAF; môi trường, dữ liệu, persona là phần của dự án
 
-TAF **không** dựng môi trường, không cấu hình hệ thống, không tạo tài khoản, vai trò hay persona. Những việc này mỗi ứng dụng làm một kiểu, và Playwright đã có sẵn chỗ cho chúng (`globalSetup`, fixture, `storageState`). TAF chỉ cần dự án khai **lệnh** cho từng target.
+TAF **không** dựng hay tắt app, không cấu hình hệ thống, không tạo tài khoản, vai trò, persona hay dữ liệu. Những việc
+này mỗi ứng dụng làm một kiểu, và CI của dự án cùng Playwright đã có sẵn chỗ cho chúng (`globalSetup`, fixture,
+`storageState`, `webServer`).
 
-## 1. TAF cần gì từ dự án
+## 1. Ba tầng
+
+| Việc | Ai lo | Ở đâu |
+|---|---|---|
+| Build, dựng / tắt app và dịch vụ đi kèm (DB, queue…), deploy | **CI của dự án** | Workflow của dự án; ở máy người tự bật app (`stack.env`) hoặc `webServer` của Playwright |
+| Dữ liệu nền (seed), tài khoản, vai trò, persona, đăng nhập sẵn | **Bộ khung test của dự án** | `globalSetup` / `globalTeardown`, `personas.yml`, `storageState` |
+| Dữ liệu riêng từng test: dựng trước, dọn sau | **Bộ khung test của dự án** — script chỉ **gọi** | Fixture (vd tạo đơn qua test API rồi xoá). Script AI sinh dùng fixture có sẵn, không tự viết cơ chế dọn dữ liệu |
+| Chọn test theo feature, chạy vào địa chỉ app, gom kết quả theo mã TC/spec, gate, báo cáo, bug | **ai-kit (TAF)** | `kit e2e` ([04](04-ci-workflow.md)) |
+
+TAF chỉ cần dự án khai **lệnh chạy test** và **biến nhận địa chỉ app**:
 
 ```yaml
 run:
-  targets:
-    ci:
-      start: ./ci/app-up.sh      # tuỳ chọn. Thoát 0 nghĩa là app đã sẵn sàng nhận test
-      stop: ./ci/app-down.sh     # tuỳ chọn. Luôn chạy, kể cả khi start/test lỗi
-      test: npx playwright test --reporter=json,list {files}
-      cwd: .                     # thư mục chạy lệnh, mặc định gốc repo
-      logs: [ci/logs/*.log]      # in 100 dòng cuối khi start lỗi
-    dev:
-      test: E2E_ENV=dev npx playwright test --reporter=json,list {files}
+  command: npx playwright test --reporter=json,list {files}   # {files}: script được chọn; {grep}: --grep (tuỳ chọn)
+  baseUrlEnv: E2E_BASE_URL     # kit e2e --base-url <url> đặt biến này; playwright.config đọc nó
+  cwd: .                       # thư mục chạy lệnh, mặc định gốc repo
+  report: e2e/test-results/raw/results.json
 ```
 
 | TAF lo | Dự án lo |
 |---|---|
-| Thứ tự start → test → stop, stop luôn chạy | Nội dung lệnh: dựng DB, migrate, seed, chạy BE/FE, cấu hình site |
-| Thay `{files}` bằng script của các feature cần chạy (để trống khi `--all`) | Playwright config, `globalSetup`, cách chọn môi trường |
-| Đặt biến `TAF_TARGET`, `TAF_ROOT`, `TAF_FILES`, `PLAYWRIGHT_JSON_OUTPUT_NAME` | Đọc secret, tạo tài khoản, đăng nhập, lưu `storageState` |
+| Thay `{files}` bằng script của các feature cần chạy (để trống với `all`), `{grep}` bằng `--grep` | Nội dung cấu hình test: Playwright config, `globalSetup`, fixture |
+| Đặt `<baseUrlEnv>` (= `--base-url`), `TAF_ENV` (= `--env`), `TAF_ROOT`, `PLAYWRIGHT_JSON_OUTPUT_NAME` | App đang chạy ở địa chỉ đó; secret, tài khoản, đăng nhập |
 | Đọc JSON report sau khi chạy | Bật reporter `json` trong lệnh test hoặc trong config |
 
 ## 2. Persona trong test case
@@ -37,10 +42,10 @@ Không bắt buộc, chỉ là cách đã dùng trong [`examples/demo`](../examp
 
 | Việc | Gợi ý |
 |---|---|
-| Chọn môi trường | Biến `E2E_ENV` hoặc `E2E_BASE_URL` trong lệnh `test` của từng target |
+| Chọn môi trường | `baseURL: process.env.E2E_BASE_URL \|\| "<địa chỉ ở máy>"` trong Playwright config; CI truyền `--base-url` |
 | Bí mật | Secret của CI, file `.env.e2e.local` (gitignore) khi chạy local |
-| Persona | Khai trong file của dự án (vd `e2e/personas.yml`). `globalSetup` tạo tài khoản qua API (nếu cần) và đăng nhập một lần, lưu `.auth/<persona>.json` |
-| Cách ly giữa các lần chạy | Tuỳ app: DB trắng mỗi lần (`ci`), hoặc tenant/workspace riêng cho test, hoặc tiền tố tên dữ liệu |
+| Persona | Khai trong file của dự án (vd `e2e/testdata/personas.yml`). `globalSetup` (`e2e/support/`) tạo tài khoản qua API (nếu cần) và đăng nhập một lần, lưu `e2e/test-results/.auth/<persona>.json` |
+| Cách ly giữa các lần chạy | Tuỳ app: DB trắng mỗi lần CI dựng app cho PR, hoặc tenant/workspace riêng cho test, hoặc tiền tố tên dữ liệu |
 | Môi trường dùng chung | Tài khoản test cố định, dữ liệu có tiền tố để dọn |
 | Môi trường production | Không chạy test ghi dữ liệu |
 

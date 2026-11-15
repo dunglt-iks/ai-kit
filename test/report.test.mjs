@@ -116,7 +116,7 @@ test("buildReport: theo feature — phủ spec, TC có test, script và test kh�
   const r = buildReport(cfg, {
     results: RESULTS,
     features: ["XX-F01", "XX-F03"],
-    target: "ci",
+    env: "ci",
   });
   assert.deepEqual(r.totals, {
     tests: 4,
@@ -171,20 +171,19 @@ test("buildReport: theo feature — phủ spec, TC có test, script và test kh�
   assert.match(md, /TC chưa có test chạy: TC-XX-F01-004/);
 });
 
-test("planBugs: tạo / gặp lại / mở lại / bỏ qua not_planned / đóng khi đã pass / chưa phân loại", async () => {
+test("planBugs: chỉ test đã phân loại thành bug; gặp lại / mở lại / bỏ qua not_planned / đóng khi đã pass; closeOnly", async () => {
   const cfg = await project();
   const r = buildReport(cfg, { results: RESULTS });
   const fp = r.failures[0].fingerprint;
   const body = (f, tc) => `x\n<!-- taf:fp=${f} -->\n<!-- taf:tc=${tc} -->`;
 
+  // chưa phân loại (CI) → không ghi bug
   assert.deepEqual(planBugs(r, []).unclassified, ["TC-XX-F01-002 Tổng tiền"]);
-  assert.equal(
-    planBugs(r, [], { assume: "app-bug" }).actions[0].type,
-    "create",
-  );
+  assert.deepEqual(planBugs(r, []).actions, []);
   applyTriage(r, [{ test: "TC-XX-F01-002 Tổng tiền", class: "script-bug" }]);
-  assert.deepEqual(planBugs(r, [], { assume: "app-bug" }).actions, []);
+  assert.deepEqual(planBugs(r, []).actions, []);
   applyTriage(r, [{ test: "TC-XX-F01-002 Tổng tiền", class: "app-bug" }]);
+  assert.equal(planBugs(r, []).actions[0].type, "create");
 
   const kinds = (existing, o) =>
     planBugs(r, existing, o).actions.map((a) => [a.type, a.issue?.id]);
@@ -228,6 +227,11 @@ test("planBugs: tạo / gặp lại / mở lại / bỏ qua not_planned / đóng
       ["create", undefined],
       ["close", 2],
     ],
+  );
+  // CI chạy hồi quy: chỉ đóng, không tạo / mở lại
+  assert.deepEqual(
+    kinds([{ id: 2, state: "open", body: body("aaaa", "TC-XX-F01-001") }], { closeFixed: true, closeOnly: true }),
+    [["close", 2]],
   );
 });
 
@@ -306,7 +310,70 @@ test("lỗi đã biết (test.fail): tách khỏi pass/fail; lại pass thì bá
   assert.match(md, /### Lỗi đã biết/);
   assert.match(md, /\[#41\]\(https:\/\/github\.com\/o\/r\/issues\/41\)/);
   assert.match(reportText(r), /1 lỗi đã biết/);
-  // knownFixed không thành bug kể cả khi gán app-bug; TC còn lỗi đã biết không bị coi là đã pass
-  const { actions } = planBugs(r, [], { assume: "app-bug", closeFixed: true });
+  // knownFixed không thành bug kể cả khi phân loại app-bug; TC còn lỗi đã biết không bị coi là đã pass
+  applyTriage(r, r.failures.map((f) => ({ test: f.title, class: "app-bug" })));
+  const { actions } = planBugs(r, [], { closeFixed: true });
   assert.equal(actions.length, 0);
+});
+
+test("R3 — nhiều test cùng fingerprint → một issue liệt kê đủ; close-fixed chỉ đóng khi chính các test đã fail đều pass lại", () => {
+  const fail = (title, fp = "aaaa") => ({ title, tc: "TC-XX-F01-003", fingerprint: fp, error: "Expected 45", file: "s.js", line: 1, triage: { class: "app-bug" } });
+  const report = {
+    failures: [fail("TC-XX-F01-003 x [1]"), fail("TC-XX-F01-003 x [2]")],
+    tests: [],
+    known: [],
+  };
+  const { actions } = planBugs(report, []);
+  assert.deepEqual(actions.map((a) => a.type), ["create"]);
+  assert.deepEqual(actions[0].failure.group, ["TC-XX-F01-003 x [1]", "TC-XX-F01-003 x [2]"]);
+
+  const body = `<!-- taf:fp=aaaa -->\n<!-- taf:tc=TC-XX-F01-003 -->\n<!-- taf:tests=${["TC-XX-F01-003 x [2]"].map(encodeURIComponent).join(",")} -->`;
+  const issue = [{ id: 7, state: "open", body }];
+  const run = (outcomes) => ({
+    failures: [],
+    known: [],
+    tests: Object.entries(outcomes).map(([title, outcome]) => ({ title, tc: "TC-XX-F01-003", outcome })),
+  });
+  const close = (r) => planBugs(r, issue, { closeFixed: true }).actions.map((a) => `${a.type} #${a.issue.id}`);
+  // dòng đã fail [2] bị skip / không chạy → không đóng, dù dòng [1] pass
+  assert.deepEqual(close(run({ "TC-XX-F01-003 x [1]": "passed", "TC-XX-F01-003 x [2]": "skipped" })), []);
+  assert.deepEqual(close(run({ "TC-XX-F01-003 x [1]": "passed" })), []);
+  assert.deepEqual(close(run({ "TC-XX-F01-003 x [1]": "passed", "TC-XX-F01-003 x [2]": "passed" })), ["close #7"]);
+  // issue cũ chỉ có mã TC: cần mọi test của TC pass
+  const old = [{ id: 8, state: "open", body: "<!-- taf:fp=bbbb -->\n<!-- taf:tc=TC-XX-F01-003 -->" }];
+  assert.deepEqual(planBugs(run({ "TC-XX-F01-003 x [1]": "passed", "TC-XX-F01-003 x [2]": "skipped" }), old, { closeFixed: true }).actions, []);
+});
+
+test("triage chỉ áp cho đúng lỗi đã phân loại: fingerprint khác (test fail lại vì lý do khác) → chưa phân loại", async () => {
+  const report = { failures: [{ title: "T1", fingerprint: "new1" }, { title: "T2", fingerprint: "fp2" }] };
+  applyTriage(report, [
+    { test: "T1", fingerprint: "old1", class: "app-bug" },
+    { test: "T2", fingerprint: "fp2", class: "script-bug" },
+  ]);
+  assert.equal(report.failures[0].triage, null);
+  assert.equal(report.failures[1].triage.class, "script-bug");
+});
+
+test("báo cáo có mục 'Test case cần xem lại' cho lỗi phân loại tc-wrong; tc-wrong không thành bug", async () => {
+  const cfg = await project();
+  const r = buildReport(cfg, { results: RESULTS, features: ["XX-F01"] });
+  applyTriage(r, [{ test: "TC-XX-F01-002 Tổng tiền", class: "tc-wrong", summary: "TC ghi 100, spec DM-BR01 nay là 90" }]);
+  const md = reportMarkdown(r);
+  assert.match(md, /### Test case cần xem lại/);
+  assert.match(md, /\| TC-XX-F01-002 \| TC-XX-F01-002 Tổng tiền \| TC ghi 100, spec DM-BR01 nay là 90 \|/);
+  assert.match(md, /kit approve <mã> --testcase/);
+  assert.match(reportText(r), /✎ TC cần xem lại: TC-XX-F01-002/);
+  assert.deepEqual(planBugs(r, []).actions, []);
+});
+
+test("báo cáo nêu dữ liệu test dọn lỗi (annotation cleanup của fixture)", async () => {
+  const cfg = await project();
+  const results = {
+    stats: {},
+    suites: [{ title: "s.js", specs: [{ title: "TC-XX-F01-001 a", file: "s.js", line: 1, tests: [{ status: "expected", annotations: [], results: [{ status: "passed", annotations: [{ type: "cleanup", description: "Không xoá được đơn #7 (404)" }] }] }] }] }],
+  };
+  const r = buildReport(cfg, { results, features: ["XX-F01"] });
+  assert.deepEqual(r.cleanup, ["TC-XX-F01-001 a: Không xoá được đơn #7 (404)"]);
+  assert.match(reportMarkdown(r), /### ⚠ Dọn dữ liệu test lỗi \(1\)/);
+  assert.match(reportText(r), /dọn dữ liệu test lỗi: 1/);
 });

@@ -1,11 +1,13 @@
 // @ts-check
-// taf file-bugs: lỗi được phân loại là bug ứng dụng → issue theo fingerprint (tạo / ghi nhận gặp
+// kit file-bugs: lỗi được phân loại là bug ứng dụng → issue theo fingerprint (tạo / ghi nhận gặp
 // lại / mở lại), và đóng issue khi TC của nó đã pass. Xem docs/07-bug-reporting.md.
 import { importAdapter, rel, TafError } from "./config.mjs";
 import { testcasePath } from "./testcase.mjs";
 
 const FP = /<!--\s*taf:fp=([0-9a-f]+)\s*-->/;
 const TC = /<!--\s*taf:tc=(\S+)\s*-->/;
+/** Danh sách tên test đã fail (mã hoá URI, cách nhau dấu phẩy) — để đóng issue đúng khi chính các test đó pass lại. */
+const TESTS = /<!--\s*taf:tests=(\S*)\s*-->/;
 
 export async function loadTracker(cfg) {
   const mod = await importAdapter(cfg, "tracker", cfg.tracker.adapter);
@@ -28,10 +30,13 @@ export function issueBody(cfg, report, f) {
       ? `**Test case:** \`${rel(cfg, testcasePath(cfg, f.feature))}\` — ${f.tc}`
       : null,
     `**Script:** \`${f.file}:${f.line}\``,
-    report.target ? `**Target:** ${report.target}` : null,
+    report.env ? `**Môi trường:** ${report.env}` : null,
     report.commit ? `**Commit:** ${report.commit}` : null,
     report.run ? `**Run:** ${report.run} (artifact có trace, ảnh chụp)` : null,
     "",
+    f.group?.length > 1
+      ? `**${f.group.length} test cùng lỗi** (cùng fingerprint):\n${f.group.map((t) => `- \`${t}\``).join("\n")}\n`
+      : null,
     "**Lỗi**",
     "```",
     f.error.split("\n").slice(0, 15).join("\n"),
@@ -39,7 +44,8 @@ export function issueBody(cfg, report, f) {
     f.triage?.summary ? `\n**Phân tích (triage):** ${f.triage.summary}` : null,
     "",
     `<!-- taf:fp=${f.fingerprint} -->`,
-    f.tc ? `<!-- taf:tc=${f.tc} -->` : `<!-- taf:tc=${f.title} -->`,
+    f.tc ? `<!-- taf:tc=${f.tc} -->` : null,
+    `<!-- taf:tests=${(f.group || [f.title]).map(encodeURIComponent).join(",")} -->`,
   ];
   return lines.filter((l) => l !== null).join("\n");
 }
@@ -48,7 +54,9 @@ export function issueBody(cfg, report, f) {
  * Lập kế hoạch (không gọi tracker): mỗi bug app → create | seen | reopen; issue mở có TC đã
  * pass hết và không còn fail → close.
  * @param {{ id: any, state: string, body: string }[]} existing
- * @param {{ assume?: string, closeFixed?: boolean }} o
+ * Chỉ test đã phân loại (triage.json, do /e2e-triage ghi) mới thành bug. closeOnly: chỉ đóng, không tạo / mở lại
+ * (CI dùng khi chạy hồi quy).
+ * @param {{ closeFixed?: boolean, closeOnly?: boolean }} o
  */
 export function planBugs(report, existing, o = {}) {
   // Nhiều issue cùng fingerprint: ưu tiên đang mở, rồi đã đóng vì sửa xong (số lớn nhất).
@@ -65,14 +73,21 @@ export function planBugs(report, existing, o = {}) {
   }
   const actions = [];
   const unclassified = [];
+  // Gom theo fingerprint: nhiều dòng của test theo bảng dữ liệu, hay cùng TC trên nhiều trình duyệt → một issue
+  const groups = new Map();
   for (const f of report.failures) {
+    const g = groups.get(f.fingerprint);
+    if (g) g.group.push(f.title);
+    else groups.set(f.fingerprint, { ...f, group: [f.title] });
+  }
+  for (const f of groups.values()) {
     if (f.knownFixed) continue; // test lỗi đã biết lại pass: việc của người gỡ dấu, không phải bug app
-    const cls = f.triage?.class || o.assume || null;
+    const cls = f.triage?.class || null;
     if (!cls) {
       unclassified.push(f.title);
       continue;
     }
-    if (cls !== "app-bug") continue;
+    if (cls !== "app-bug" || o.closeOnly) continue;
     const issue = byFp.get(f.fingerprint);
     if (!issue) actions.push({ type: "create", failure: f });
     else if (issue.state === "open")
@@ -82,23 +97,27 @@ export function planBugs(report, existing, o = {}) {
     else actions.push({ type: "reopen", failure: f, issue });
   }
   if (o.closeFixed) {
-    // TC còn test lỗi đã biết thì chưa coi là đã pass hết
-    const failing = new Set(
-      [...report.failures, ...(report.known || [])].map((f) => f.tc || f.title),
-    );
-    const passing = new Set(
-      report.tests
-        .filter((t) => t.outcome === "passed")
-        .map((t) => t.tc || t.title),
-    );
+    const outcome = new Map(report.tests.map((t) => [t.title, t.outcome]));
     const failingFp = new Set(report.failures.map((f) => f.fingerprint));
     for (const i of existing) {
       if (i.state !== "open") continue;
       const fp = FP.exec(i.body)?.[1];
-      const key = TC.exec(i.body)?.[1];
-      if (!fp || !key || failingFp.has(fp)) continue;
-      if (passing.has(key) && !failing.has(key))
-        actions.push({ type: "close", key, issue: i });
+      if (!fp || failingFp.has(fp)) continue;
+      const tests = TESTS.exec(i.body)?.[1];
+      let key;
+      let ok;
+      if (tests) {
+        // Đóng khi chính các test đã fail đều chạy lại và pass (không chạy, skip, lỗi đã biết → giữ)
+        const names = tests.split(",").filter(Boolean).map(decodeURIComponent);
+        key = names.join("; ");
+        ok = names.length > 0 && names.every((n) => outcome.get(n) === "passed");
+      } else {
+        // Issue cũ chỉ có mã TC: mọi test của TC đó trong lần chạy này đều pass
+        key = TC.exec(i.body)?.[1];
+        const mine = report.tests.filter((t) => (t.tc || t.title) === key);
+        ok = !!key && mine.length > 0 && mine.every((t) => t.outcome === "passed");
+      }
+      if (ok) actions.push({ type: "close", key, issue: i });
     }
   }
   return { actions, unclassified };
@@ -107,7 +126,7 @@ export function planBugs(report, existing, o = {}) {
 /**
  * @param {any} cfg
  * @param {any} report
- * @param {{ assume?: string, closeFixed?: boolean, dryRun?: boolean, log?: (m: string) => void }} o
+ * @param {{ closeFixed?: boolean, closeOnly?: boolean, dryRun?: boolean, log?: (m: string) => void }} o
  */
 export async function fileBugs(cfg, report, o = {}) {
   const log = o.log || console.log;
@@ -115,6 +134,8 @@ export async function fileBugs(cfg, report, o = {}) {
   const tracker =
     o.dryRun && !process.env.GITHUB_TOKEN ? null : await loadTracker(cfg);
   const existing = tracker ? await tracker.list({ labels }) : [];
+  if (!tracker)
+    log("⚠ --dry-run không có GITHUB_TOKEN: không tra được issue đã có — mọi lỗi hiện là \"tạo\" (thực tế có thể là gặp lại / mở lại)");
   const { actions, unclassified } = planBugs(report, existing, o);
   /** @type {Record<string, any>} fingerprint → issue id */
   const issues = {};
@@ -161,9 +182,7 @@ export async function fileBugs(cfg, report, o = {}) {
       }
     }
   }
-  if (unclassified.length)
-    log(
-      `⚠ ${unclassified.length} test fail chưa phân loại (không có triage, không có --assume): không ghi bug`,
-    );
+  if (unclassified.length && !o.closeOnly)
+    log(`⚠ ${unclassified.length} test fail chưa phân loại — chạy /e2e-triage để phân loại trước khi ghi bug`);
   return { actions, unclassified, issues };
 }

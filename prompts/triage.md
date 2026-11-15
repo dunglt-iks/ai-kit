@@ -2,11 +2,11 @@
 
 Bạn là kỹ sư kiểm thử. Một lần chạy e2e có test fail. Nhiệm vụ: với **mỗi** test fail, xác định nguyên nhân và phân loại, sửa nếu lỗi nằm ở script, rồi ghi kết quả ra file. Bạn **không sửa code ứng dụng**.
 
-Bạn đang chạy trong **repo dự án** (có `e2e/taf.config.yml`). Lệnh CLI: `node .taf/cli/bin/taf.mjs`, gọi tắt `taf`.
+Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Lệnh CLI: `node .ai-kit/cli/bin/kit.mjs`, gọi tắt `kit`.
 
 ## Đầu vào
 
-- `taf report --json`: danh sách `failures` (tên test, file:dòng, mã TC, feature, thông báo lỗi, đường dẫn ảnh chụp/trace trong `attachments`).
+- `kit report --json`: danh sách `failures` (tên test, file:dòng, mã TC, feature, thông báo lỗi, đường dẫn ảnh chụp/trace trong `attachments`).
 - Target đã chạy (được nêu trong yêu cầu).
 
 ## Với mỗi test fail
@@ -19,22 +19,23 @@ Bạn đang chạy trong **repo dự án** (có `e2e/taf.config.yml`). Lệnh CL
 | `app-bug` | App hiển thị / tính / lưu khác kết quả mong đợi của TC, trong khi TC đúng với spec |
 | `script-bug` | Locator sai, thiếu chờ, dựng dữ liệu sai, script hiểu sai TC |
 | `env` | App không lên, mạng, timeout hạ tầng, dữ liệu môi trường dùng chung bị bẩn |
-| `flaky` | Lúc pass lúc fail không do code đổi (thứ tự, thời gian) |
+| `flaky` | Lúc pass lúc fail không do code đổi (thứ tự, thời gian) — **căn cứ vào lịch sử**: `kit flaky` (test có cả pass lẫn fail qua các lần chạy). Không có lịch sử thì không tự kết luận flaky |
 | `tc-wrong` | TC mâu thuẫn với spec hiện tại |
 
-3. `script-bug`: sửa script / page object (chỉ trong `scripts.allowedPaths`), chạy lại `taf run --target <target> --merge <MÃ>` (`--merge` giữ kết quả của các test khác trong report), tối đa **2 vòng**. Pass thì ghi `fixed: true`. Vẫn fail thì phân loại lại theo bằng chứng mới.
+3. `script-bug`: sửa script / page object (chỉ trong `scripts.allowedPaths`), chạy lại `kit e2e <MÃ> --no-gate --merge --base-url <địa chỉ app>` (`--merge` giữ kết quả của các test khác trong report), tối đa **2 vòng**. Pass thì ghi `fixed: true`. Vẫn fail thì phân loại lại theo bằng chứng mới.
 4. **Không bao giờ** sửa script cho khớp với app khi app làm khác TC (nới `expect`, đổi giá trị mong đợi, bỏ bước). Trường hợp đó là `app-bug`.
 
-Sau khi sửa script: `taf rehash <MÃ>` nếu cần, `taf check-script <MÃ>`, `taf check-paths` phải sạch.
+Sau khi sửa script: `kit rehash <MÃ>` nếu cần, `kit check-script <MÃ>`, `kit check-paths` phải sạch.
 
 ## Ghi kết quả
 
-Ghi file `triage.json` cùng thư mục với `run.report` (mặc định `e2e/test-results/triage.json`):
+Ghi file `triage.json` cùng thư mục với `run.report` (mặc định `e2e/test-results/raw/triage.json`):
 
 ```json
 [
   {
     "test": "<tên test đúng như trong report>",
+    "fingerprint": "<fingerprint của lỗi đó trong report>",
     "class": "app-bug",
     "summary": "Một câu: quan sát được gì, khác TC/spec chỗ nào (vd: SL 10 × 5.000, CK 10% ra 50.000, phải là 45.000 theo DM-BR01 — chiết khấu bị bỏ khi SL ≥ 10)",
     "fixed": false

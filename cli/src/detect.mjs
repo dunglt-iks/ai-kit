@@ -4,13 +4,24 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { extractFeatures } from "./codes.mjs";
+import { TafError } from "./errors.mjs";
 
 function git(cfg, args) {
-  return execFileSync("git", args, {
-    cwd: cfg.root,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  try {
+    return execFileSync("git", args, {
+      cwd: cfg.root,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (e) {
+    const msg = String(e.stderr || e.message).trim().split("\n")[0];
+    throw new TafError(
+      `Không đọc được lịch sử git để lấy mã feature của PR (git ${args.join(" ")}: ${msg}). ` +
+        "Trên CI: actions/checkout cần fetch-depth: 0. Ở máy: cần remote/nhánh gốc (project.remote, project.baseBranch) " +
+        "hoặc truyền --base <ref>. Chạy hằng đêm / sau deploy thì dùng phạm vi all, không dùng changed / none.",
+    );
+  }
 }
 
 /** Glob đơn giản: ** = mọi thứ kể cả /, * = mọi thứ trừ /. */
@@ -78,6 +89,10 @@ export function detect(cfg, pr) {
     branch: extractFeatures(cfg, pr.branch),
     commits: extractFeatures(cfg, commits),
     status: [],
+    // trigger.featureMap: file code đổi → feature bị ảnh hưởng (kể cả khi PR không khai mã đó)
+    map: Object.entries(cfg.trigger.featureMap || {})
+      .filter(([glob]) => files.some((f) => matchesAny(f, [glob])))
+      .flatMap(([, codes]) => [].concat(codes).map((c) => String(c).toUpperCase())),
   };
   if (cfg.trigger.statusFile && files.includes(cfg.trigger.statusFile)) {
     sources.status = featuresFromStatusDiff(
@@ -91,7 +106,10 @@ export function detect(cfg, pr) {
   const codeFiles = files.filter((f) => matchesAny(f, cfg.trigger.codePaths));
   const skip = (pr.labels || []).includes(cfg.trigger.skipLabel);
   let error = null;
-  if (codeFiles.length && known.length === 0 && !skip) {
+  const declared = [...new Set([...sources.title, ...sources.branch, ...sources.commits, ...sources.status])].filter((c) =>
+    adapter.findFeature(c),
+  );
+  if (codeFiles.length && declared.length === 0 && !skip) {
     error =
       `PR sửa ${codeFiles.length} file code (${codeFiles.slice(0, 3).join(", ")}${codeFiles.length > 3 ? ", …" : ""}) ` +
       `nhưng không khai mã feature nào. Ghi mã vào tiêu đề PR, tên nhánh hoặc commit (vd \`feat(dl-f05): …\`), ` +
