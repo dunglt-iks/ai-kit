@@ -70,6 +70,7 @@ jobs:
           base-url: http://127.0.0.1:4310
           env: ci
           fail-on: never
+          publish: 'false'                # job kiểm nội bộ (có biến thể cố ý bật lỗi): không comment lên PR
           artifact: demo-${{ matrix.variant }}
       - name: Kiểm kết quả
         env:

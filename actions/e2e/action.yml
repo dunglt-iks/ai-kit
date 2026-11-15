@@ -28,6 +28,9 @@ inputs:
   root:
     description: Thư mục dự án (nơi có ai-kit.yml), tính từ gốc repo
     default: .
+  publish:
+    description: '"true" = comment PR (gate + kết quả), nhãn chặn, step summary. "false" cho job chạy thử / kiểm nội bộ không muốn đè comment của PR'
+    default: 'true'
   shard:
     description: 'Chạy phần i trong n (vd 1/4) — dùng với matrix; gộp ở job sau bằng kit report --results … --strict'
     default: ''
@@ -85,9 +88,11 @@ runs:
         GREP: ${{ inputs.grep }}
         GATE: ${{ inputs.gate }}
         SHARD: ${{ inputs.shard }}
+        PUBLISH: ${{ inputs.publish }}
       run: |
         read -r -a scope <<< "$SCOPE"
-        args=(e2e "${scope[@]}" --publish github --env "$KIT_ENV" --fail-on "$FAIL_ON")
+        args=(e2e "${scope[@]}" --env "$KIT_ENV" --fail-on "$FAIL_ON")
+        [ "$PUBLISH" = "true" ] && args+=(--publish github)
         [ -n "$BASE_URL" ] && args+=(--base-url "$BASE_URL")
         [ -n "$GREP" ] && args+=(--grep "$GREP")
         [ "$GATE" = "true" ] && args+=(--gate)
