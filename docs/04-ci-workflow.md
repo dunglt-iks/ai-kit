@@ -64,7 +64,8 @@ gate đỏ, trừ khi có nhãn `trigger.skipLabel`.
 
 `uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>` — cài kit theo đúng ref, đọc sự kiện PR, gọi `kit e2e --publish
 github`, upload thư mục kết quả làm artifact (cho `/e2e-triage <run-id>`). Input: `scope`, `base-url`, `env`, `grep`,
-`gate` (`auto` | `true` | `false`), `close-fixed`, `fail-on`, `root` (thư mục chứa `ai-kit.yml`), `artifact`. Output:
+`gate` (`auto` | `true` | `false`), `close-fixed`, `fail-on`, `shard`, `history`, `publish` (mặc định `true`; `false` cho
+job chạy thử không muốn đè comment của PR), `root` (thư mục chứa `ai-kit.yml`), `artifact`. Output:
 `features`, `gate`, `failed`. Đổi phiên bản kit: đổi `@<ref>` cùng lúc với `kitRef` trong `ai-kit.yml`.
 
 Job cần `actions/checkout` với `fetch-depth: 0` (kit đọc commit của PR) và quyền:
