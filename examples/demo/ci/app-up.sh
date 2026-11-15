@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phần của dự án: khởi động app tạm cho target "ci". Thoát 0 khi app đã sẵn sàng.
+# Phần của dự án: bật app (CI và ở máy). Thoát 0 khi app đã sẵn sàng.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p ci/logs

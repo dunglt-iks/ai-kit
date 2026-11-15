@@ -1,6 +1,7 @@
-# Chạy đúng luồng của templates/workflows/e2e-spec.yml trên dự án mẫu (examples/demo),
-# với action lấy từ chính repo này thay vì checkout .taf. PR đụng examples/demo/** sẽ chạy.
-name: Demo — E2E spec
+# Ví dụ sống: repo dự án (examples/demo) cắm ai-kit vào CI của mình cho PR. Phần của dự án: checkout, cài, dựng
+# app. Phần của kit: một bước actions/e2e (repo thật dùng `uses: dunglt-iks/ai-kit/actions/e2e@v2`).
+# PR đụng examples/demo/** sẽ chạy.
+name: Demo — E2E cho PR
 
 on:
   pull_request:
@@ -8,43 +9,16 @@ on:
     paths: ["examples/demo/**"]
 
 concurrency:
-  group: demo-e2e-spec-${{ github.event.pull_request.number }}
+  group: demo-e2e-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
+  pull-requests: write   # comment gate + kết quả
+  issues: write          # nhãn chặn
 
 jobs:
-  detect:
-    runs-on: ubuntu-latest
-    outputs:
-      features: ${{ steps.detect.outputs.features }}
-      has_features: ${{ steps.detect.outputs.has_features }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: detect
-        uses: ./actions/detect
-        with:
-          root: examples/demo
-
-  gate:
-    needs: detect
-    if: needs.detect.outputs.has_features == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./actions/gate
-        with:
-          root: examples/demo
-          features: ${{ needs.detect.outputs.features }}
-
   e2e:
-    needs: [detect, gate]
-    if: needs.detect.outputs.has_features == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -53,37 +27,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: TAF ở <root>/.taf
-        run: ln -s ../.. .taf
-      - uses: ./actions/generate
+          fetch-depth: 0          # kit đọc commit của PR để lấy mã feature
+      # ── Phần của dự án ──
+      - uses: actions/setup-node@v4
         with:
-          root: examples/demo
-          features: ${{ needs.detect.outputs.features }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      - name: Cài phụ thuộc (phần của dự án)
+          node-version: '20'
+      - name: Cài, dựng app
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - id: run
-        uses: ./actions/run
+          bash ci/app-up.sh
+      # ── Điểm cắm ai-kit ──
+      - uses: ./actions/e2e
         with:
           root: examples/demo
-          target: ci
-          features: ${{ needs.detect.outputs.features }}
+          scope: changed
+          base-url: http://127.0.0.1:4310
+          env: pr
           artifact: demo-pr-${{ github.event.pull_request.number }}
-          fail-on-test-failure: 'false'
-      - id: report
-        if: always() && steps.run.outcome == 'success'
-        uses: ./actions/report
-        with:
-          root: examples/demo
-          target: ci
-          features: ${{ needs.detect.outputs.features }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      - name: Kết quả
-        if: steps.report.outputs.failed != '0'
-        run: |
-          echo "::error::Còn ${{ steps.report.outputs.failed }} test e2e fail — xem comment trên PR"
-          exit 1
+      # ── Phần của dự án ──
+      - name: Tắt app
+        if: always()
+        run: bash ci/app-down.sh

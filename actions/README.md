@@ -1,14 +1,10 @@
 # actions/
 
-Composite GitHub Action, mỗi thư mục là một bước trong workflow `e2e-spec.yml` của dự án. Dự án checkout repo này vào `.taf/` rồi gọi `uses: ./.taf/actions/<tên>`.
+| Action | Việc |
+|---|---|
+| [`e2e/`](e2e/action.yml) | Điểm cắm của ai-kit vào CI GitHub của dự án: cài kit theo ref của action, gọi `kit e2e` với `scope` (none / changed / all / mã), `base-url`, `env`, `grep`, `gate`, `close-fixed`, `fail-on`; comment PR, nhãn chặn, upload kết quả làm artifact (cho `/e2e-triage <run-id>`) |
 
-| Action | Gọi | AI | Tài liệu |
-|---|---|---|---|
-| `detect/` | `taf detect`: mã feature của PR | Không | [04 §3](../docs/04-ci-workflow.md) |
-| `gate/` | `taf gate`: comment + nhãn chặn | Không | [04 §3](../docs/04-ci-workflow.md) |
-| `generate/` | `plan-gen` → Claude + `prompts/script.md` → `check-paths`, `check-script`, `lint-script` → commit vào PR | Có (bỏ qua nếu thiếu token) | [03](../docs/03-script-generation.md) |
-| `run/` | `taf run --target`: start → test → stop, upload artifact | Không | [04 §1](../docs/04-ci-workflow.md) |
-| `report/` | Claude triage (khi có fail và có token) → `taf report --github --file-bugs` → commit bản sửa script | Một phần | [07](../docs/07-bug-reporting.md) |
-| `testcase-draft/` | `taf newly-approved` → Claude + `prompts/testcase.md` → PR TC nháp | Có | [04 §2](../docs/04-ci-workflow.md) |
-
-Action đọc TAF từ chính thư mục của nó (`$GITHUB_ACTION_PATH/../..`); các bước gọi Claude dùng `<root>/.taf`, nên dự án checkout TAF vào `.taf` (hoặc symlink).
+Dự án gọi `uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>` **sau** bước dựng app của mình (khi chạy test), với
+`actions/checkout` có `fetch-depth: 0` (kit đọc commit của PR để lấy mã feature). Action không gọi AI và không ghi bug
+mới. Hướng dẫn và đoạn mẫu: [docs/04](../docs/04-ci-workflow.md). Ví dụ chạy thật:
+[`.github/workflows/demo-e2e-spec.yml`](../.github/workflows/demo-e2e-spec.yml).

@@ -2,9 +2,9 @@
 
 Bạn là kỹ sư kiểm thử. Nhiệm vụ: viết (hoặc đồng bộ) **test case e2e dạng markdown** cho một feature, từ spec của dự án. Test case để **người review đọc và duyệt**, rồi mới sinh script. Bạn **không viết code**.
 
-Bạn đang chạy trong **repo dự án** (có `e2e/taf.config.yml`). Framework nằm ở `.taf/`. Định dạng đầy đủ: `.taf/docs/02-testcase-format.md`, đọc trước nếu chưa đọc.
+Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Framework nằm ở `.ai-kit/`. Định dạng đầy đủ: `.ai-kit/docs/02-testcase-format.md`, đọc trước nếu chưa đọc.
 
-Lệnh CLI: `node .taf/cli/bin/taf.mjs <lệnh>`, gọi tắt là `taf`.
+Lệnh CLI: `node .ai-kit/cli/bin/kit.mjs <lệnh>`, gọi tắt là `kit`.
 
 ## Đầu vào
 
@@ -12,21 +12,21 @@ Mã feature. Thiếu mã thì hỏi lại.
 
 ## Các bước
 
-1. **Lấy cấu trúc spec**: `taf spec <MÃ> --json`. Các trường dùng tới:
+1. **Lấy cấu trúc spec**: `kit spec <MÃ> --json`. Các trường dùng tới:
    - `file`, `line`: nơi đặt phần spec của feature. `status`, `approved`: trạng thái duyệt. `hash`: specHash.
    - `required`: **mọi mã TC phải phủ**. Các trường khác (vd `stories`, `screens`) tuỳ adapter, dùng để hiểu cấu trúc.
    - `testcaseFile`: đường dẫn file TC.
    - `labels`: bộ nhãn phải dùng (vd `labels.trace` = "Truy vết" hoặc "Trace"; `labels.draft` là giá trị status nháp).
    - `personas`: tên persona hợp lệ (`null` = dự án không khai danh sách).
-2. **Từ chối** nếu `approved` là `false`: báo "Spec `<MÃ>` còn `<status>`, chưa sinh test case. Duyệt spec trước." Dừng.
+2. **Từ chối** nếu `approved` là `false`: báo "Spec `<MÃ>` còn `<status>`, chưa sinh test case. Duyệt spec trước." Dừng. Spec adapter có theo dõi prototype (`prototype.required` là `true`) thì `prototype.approved` cũng phải `true` và `prototype.stamp` bằng `prototype.screensHash` — không thì từ chối tương tự (`kit ready <MÃ>` cho lý do cụ thể).
 3. **Đọc**:
    - Toàn bộ phần spec của feature (từ `file:line`): màn hình, quy tắc hiển thị, luồng nghiệp vụ, rule.
    - Phần spec khác mà feature dẫn tới, ở mức đủ hiểu bối cảnh.
    - File TC hiện có nếu đã có: khi đó là **chế độ đồng bộ** (xem dưới).
 4. **Viết file TC** tại `testcaseFile`, ngôn ngữ theo bộ nhãn.
 5. **Tự kiểm tra**:
-   - `taf lint-tc <file>` hết lỗi ✘.
-   - `taf gate <MÃ>` chỉ được báo đúng một lỗi "Test case còn <labels.draft>". Mọi lỗi khác, nhất là "Chưa phủ", phải sửa xong.
+   - `kit lint-tc <file>` hết lỗi ✘.
+   - `kit gate <MÃ>` chỉ được báo đúng một lỗi "Test case còn <labels.draft>". Mọi lỗi khác, nhất là "Chưa phủ", phải sửa xong.
 6. **Báo lại** (xem "Kết thúc").
 
 ## Luật viết
@@ -38,13 +38,15 @@ Dưới đây `{trace}`, `{expected}`… là giá trị trong `labels`.
 ```yaml
 ---
 feature: <MÃ>
-spec: <file từ taf spec>
+spec: <file từ kit spec>
 specHash: "<hash>"          # luôn đặt trong ngoặc kép
-status: <labels.draft>      # LUÔN là nháp. Chỉ người review đổi sang <labels.approved>
+status: <labels.draft>      # LUÔN là nháp. Người review duyệt bằng kit approve <MÃ> --testcase
 reviewer: ""
 persona: <persona dùng nhiều nhất>   # bỏ dòng này nếu dự án không dùng persona
 ---
 ```
+
+Không ghi `approvedHash` (chỉ `kit approve <MÃ> --testcase` ghi). Đồng bộ TC đã duyệt: bỏ dòng `approvedHash`, đưa `status` về nháp.
 
 ### Phủ (gate kiểm)
 
@@ -69,6 +71,10 @@ persona: <persona dùng nhiều nhất>   # bỏ dòng này nếu dự án khôn
 ```
 
 - **Ưu tiên:** P1 cho luồng chính và nhánh ảnh hưởng tiền, dữ liệu hoặc quyền. P2 cho nhánh khác. P3 cho hiển thị phụ.
+  P1 chạy kèm mọi PR của repo — chỉ đặt P1 cho đường chính thật sự, không đặt tràn lan.
+- **Tầng:** `- {layer}: api` cho TC kiểm quy tắc tính toán, kiểm dữ liệu nhập, phân quyền ở server — những thứ không cần
+  nhìn giao diện (một TC `e2e` đại diện cho mỗi quy tắc là đủ). Thứ chỉ kiểm được ở unit test: đưa vào mục ngoài phạm vi.
+  Không ghi thì là `e2e`.
 - **Bước** dùng đúng tên trên giao diện như spec ghi, kèm số thành phần trên wireframe nếu spec có.
 - **Kết quả mong đợi** là điều **quan sát được trên giao diện**: chữ hiện ra, ô bị khoá, số tiền, thông báo. Không ghi DB, API, log. "Đã lưu" thì kiểm bằng cách mở lại hoặc tải lại màn hình.
 - **Số liệu cụ thể**, kể cả kết quả tính toán và làm tròn: "2,5 × 100.000 × (1 − 10%) = 225.000".
@@ -86,7 +92,7 @@ persona: <persona dùng nhiều nhất>   # bỏ dòng này nếu dự án khôn
 - **Giữ nguyên mã** các TC còn đúng. TC mới đánh số tiếp từ số lớn nhất, **không dùng lại số**.
 - TC truy vết mã không còn trong spec: thêm `[DEPRECATED]` vào cuối heading, giữ nguyên nội dung.
 - Sửa TC có kết quả mong đợi đã khác spec.
-- Cập nhật `specHash`, đặt lại `status: <labels.draft>`, `reviewer: ""`.
+- Cập nhật `specHash`, đặt lại `status: <labels.draft>`, `reviewer: ""`, xoá dòng `approvedHash`.
 
 ## Phạm vi file
 
@@ -97,7 +103,7 @@ Chỉ được ghi vào **file TC**. Không sửa spec, code hay file nào khác
 Báo lại ngắn gọn:
 
 1. File đã ghi, số TC (mới / sửa / DEPRECATED).
-2. Kết quả `taf gate`, gồm độ phủ x/y.
+2. Kết quả `kit gate`, gồm độ phủ x/y.
 3. Các mã đưa ra ngoài phạm vi e2e, kèm lý do.
 4. Câu hỏi cho người review: chỗ spec mơ hồ, giá trị bạn phải tự chọn, persona cần thêm.
-5. Bước tiếp theo: người review sửa, đổi status sang đã duyệt, điền `reviewer`, rồi push.
+5. Bước tiếp theo: người review đọc, sửa nếu cần, rồi duyệt bằng `kit approve <MÃ> --testcase` (ghi status + reviewer).

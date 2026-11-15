@@ -1,15 +1,12 @@
 # templates/
 
-File mẫu cho dự án. `taf init` copy chúng vào repo dự án (không ghi đè file đã có).
+File mẫu và khuôn. `kit init` tạo `ai-kit.yml` từ đây (không ghi đè file đã có); các khuôn tài liệu thì AI đọc tại
+chỗ (`spec.templates` ghi đè được).
 
-| File | Copy tới | Tài liệu |
+| File | Dùng thế nào | Tài liệu |
 |---|---|---|
-| `taf.config.yml` | `e2e/taf.config.yml` | [01 §4](../docs/01-architecture.md) |
-| `testcases-README.md` | `e2e/testcases/README.md` | [02](../docs/02-testcase-format.md) |
-| `pages-README.md` | `e2e/pages/README.md` (nơi nên đặt page object) | [01 §3](../docs/01-architecture.md) |
+| `ai-kit.yml` | `kit init` → `ai-kit.yml` ở gốc dự án (điền `agents`, `guides` dò được) | [11](../docs/11-cau-hinh.md) |
+| `prd.md`, `fsd.md` | Khuôn PRD / cách viết FSD cho `/spec`, `/prototype` | [13](../docs/13-tai-lieu-spec.md), [`RULES.md`](../RULES.md) §2 |
+| `plan.md` | Khuôn kế hoạch của `/dev` | [10 §3](../docs/10-quy-trinh.md) |
+| `prototype.html` | Khuôn HTML tĩnh của `/prototype` | [10 §3](../docs/10-quy-trinh.md) |
 | `testcase.md` | Mẫu một file TC (tham khảo) | [02](../docs/02-testcase-format.md) |
-| `workflows/e2e-spec.yml` | `.github/workflows/` — PR: detect → gate → generate → run → report | [04 §3](../docs/04-ci-workflow.md) |
-| `workflows/e2e-regression.yml` | `.github/workflows/` — sau CD / hằng đêm: run target `dev` → report, tự đóng bug | [04 §1](../docs/04-ci-workflow.md) |
-| `workflows/testcase-draft.yml` | `.github/workflows/` — spec được duyệt → TC nháp → PR | [04 §2](../docs/04-ci-workflow.md) |
-
-Trong workflow, chỗ đánh dấu `DỰ ÁN` là phần dự án phải sửa (cài phụ thuộc, runner, tên workflow CD, nhánh, thư mục spec). Ví dụ đã chạy thật: [`.github/workflows/demo-e2e-spec.yml`](../.github/workflows/demo-e2e-spec.yml) cho `examples/demo`.

@@ -19,12 +19,23 @@ jobs:
           node-version: '20'
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: kit init trên repo trống, rồi doctor
+        run: |
+          d="$RUNNER_TEMP/empty" && mkdir -p "$d" && cd "$d" && git init -q
+          node "$GITHUB_WORKSPACE/cli/bin/kit.mjs" init
+          ln -s "$GITHUB_WORKSPACE" .ai-kit
+          node .ai-kit/cli/bin/kit.mjs doctor
 
-  # Dự án mẫu chạy đủ luồng: gate → check-script → run (target ci) → report.
-  # Job "bug" bật lỗi cài sẵn (DEMO_BUG=discount): phải có đúng 2 test fail và 2 bug được lập kế hoạch.
+  # Dự án mẫu: phần của dự án (cài, dựng app) rồi điểm cắm ai-kit (actions/e2e) — đúng như repo dùng kit.
+  # Biến thể "bug" bật lỗi cài sẵn (DEMO_BUG=discount): đúng 2 test fail, không bug nào bị ghi khi chưa phân loại;
+  # phân loại giả lập (triage.json) → file-bugs lập kế hoạch đúng 2 bug.
   demo:
     needs: unit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -39,46 +50,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Phần của dự án — cài phụ thuộc, trình duyệt
+      - name: Phần của dự án — cài phụ thuộc, trình duyệt, dựng app
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - name: TAF ở <root>/.taf (dự án thật checkout TAF vào đây)
+          bash ci/app-up.sh
+      - name: Kit nhúng đúng + gate + script khớp TC
         run: |
-          ln -s ../.. .taf
+          ln -s ../.. .ai-kit
           npm ci --omit=dev --no-audit --no-fund --prefix ../..
-      - name: Gate + script khớp TC
-        run: |
-          node .taf/cli/bin/taf.mjs gate DM-F01 DM-F02
-          node .taf/cli/bin/taf.mjs check-script
-          node .taf/cli/bin/taf.mjs lint-script
-      - id: run
-        uses: ./actions/run
+          node .ai-kit/cli/bin/kit.mjs doctor
+          node .ai-kit/cli/bin/kit.mjs gate DM-F01 DM-F02
+          node .ai-kit/cli/bin/kit.mjs check-script
+          node .ai-kit/cli/bin/kit.mjs lint-script
+      - uses: ./actions/e2e
         with:
           root: examples/demo
-          target: ci
-          all: 'true'
+          scope: all
+          base-url: http://127.0.0.1:4310
+          env: ci
+          fail-on: never
           artifact: demo-${{ matrix.variant }}
-          fail-on-test-failure: 'false'
-      - id: report
-        uses: ./actions/report
-        with:
-          root: examples/demo
-          target: ci
-          features: '["DM-F01","DM-F02"]'
-          file-bugs: ${{ matrix.variant == 'bug' }}
-          assume: app-bug
-          dry-run: 'true'
       - name: Kiểm kết quả
         env:
           VARIANT: ${{ matrix.variant }}
         run: |
           node -e '
-            const r = require("./e2e/test-results/taf-result.json");
+            const fs = require("fs");
+            const r = require("./e2e/test-results/raw/result.json");
             const want = process.env.VARIANT === "bug" ? 2 : 0;
-            console.log("fail:", r.totals.failed, "bug dự kiến:", (r.bugs || []).length);
+            console.log("fail:", r.totals.failed);
             if (r.totals.failed !== want) { console.error(`phải có ${want} test fail`); process.exit(1); }
-            const planned = (r.bugs || []).filter((b) => ["create", "seen", "reopen"].includes(b.type)).length;
-            if (want && planned !== want) { console.error(`phải lập kế hoạch ghi ${want} bug (có ${planned})`); process.exit(1); }
             if (r.totals.tests < 20) { console.error("thiếu test"); process.exit(1); }
+            // giả lập /e2e-triage: mọi test fail là lỗi app
+            fs.writeFileSync("e2e/test-results/raw/triage.json", JSON.stringify(r.failures.map((f) => ({ test: f.title, class: "app-bug", summary: "ci" }))));
           '
+          node .ai-kit/cli/bin/kit.mjs file-bugs --dry-run | tee bugs.txt
+          want=$([ "$VARIANT" = bug ] && echo 2 || echo 0)
+          got=$(grep -c "tạo issue" bugs.txt || true)
+          [ "$got" = "$want" ] || { echo "phải lập kế hoạch ghi $want bug (có $got)"; exit 1; }
+      - name: Tắt app (phần của dự án)
+        if: always()
+        run: bash ci/app-down.sh

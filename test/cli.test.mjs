@@ -13,7 +13,14 @@ import {
   globToRegex,
 } from "../cli/src/detect.mjs";
 import { gateFeature } from "../cli/src/gate.mjs";
-import { lintTestcase } from "../cli/src/testcase.mjs";
+import { approvalHash, lintTestcase } from "../cli/src/testcase.mjs";
+
+/** Mô phỏng người duyệt: ghi approvedHash khớp nội dung (như kit approve --testcase). */
+function approved(text) {
+  const t = text.replace(/^approvedHash:.*\n/m, "");
+  if (!/^status: (Approved|Đã duyệt)$/m.test(t)) return t;
+  return t.replace(/\n---\n/, `\napprovedHash: "${approvalHash(t)}"\n---\n`);
+}
 
 const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -30,7 +37,7 @@ async function project({ hash = true, edit } = {}) {
   const first = await loadProject({ root: dir });
   if (hash) text = text.replace("HASH", first.adapter.findFeature("XX-F01").hash);
   if (edit) text = edit(text);
-  fs.writeFileSync(tc, text);
+  fs.writeFileSync(tc, approved(text));
   const cfg = await loadProject({ root: dir });
   return { dir, cfg, adapter: cfg.adapter, tc };
 }
@@ -145,11 +152,27 @@ test("lint-tc: bắt mã sai, trùng, thiếu truy vết, thiếu cột kết qu
   assert.match(msgs, /TC-XX-F01-4" phải dạng/);
 });
 
-test("gate: qua khi đủ điều kiện", async () => {
-  const { cfg, adapter } = await project();
-  const r = gateFeature(cfg, "XX-F01");
+test("gate: TC đủ điều kiện nhưng chưa có script → chặn; có script khớp TC → qua", async () => {
+  const { cfg } = await project();
+  const { sourceHeader, scriptPath } = await import("../cli/src/scripts.mjs");
+  let r = gateFeature(cfg, "XX-F01");
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join("\n"), /không có script — chạy `\/e2e-script XX-F01` ở máy/);
+
+  cfg.gate.requireScript = false;
+  assert.equal(gateFeature(cfg, "XX-F01").ok, true);
+  cfg.gate.requireScript = true;
+
+  const sp = scriptPath(cfg, "XX-F01");
+  fs.mkdirSync(path.dirname(sp), { recursive: true });
+  const body = ["001", "002", "004"].map((n) => `test("TC-XX-F01-${n} x", async () => { expect(1).toBe(1); });`);
+  fs.writeFileSync(sp, [sourceHeader(cfg, "XX-F01"), ...body].join("\n") + "\n");
+  r = gateFeature(cfg, "XX-F01");
   assert.deepEqual(r.problems, []);
   assert.equal(r.ok, true);
+
+  fs.writeFileSync(sp, [sourceHeader(cfg, "XX-F01"), body[0]].join("\n") + "\n");
+  assert.match(gateFeature(cfg, "XX-F01").problems.join("\n"), /thiếu test cho: TC-XX-F01-002, TC-XX-F01-004/);
 });
 
 test("gate: báo nhánh chưa phủ, TC Nháp, TC lỗi thời", async () => {
@@ -278,4 +301,24 @@ test("detect: lấy mã từ tiêu đề/nhánh/commit/status; đòi khai mã kh
   });
   assert.deepEqual(st.sources.status, ["XX-F03"]);
   assert.deepEqual(st.features, ["XX-F03"]);
+});
+
+test("detect — trigger.featureMap: file code đổi kéo thêm feature bị ảnh hưởng; vẫn đòi PR khai ít nhất một mã", async () => {
+  const { dir, cfg } = await project();
+  const g = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" }).trim();
+  g("init", "-q", "-b", "main");
+  g("add", ".");
+  g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base");
+  const base = g("rev-parse", "HEAD");
+  fs.mkdirSync(path.join(dir, "server/shared"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "server/shared/money.go"), "package x\n");
+  g("add", ".");
+  g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "refactor money");
+  cfg.trigger.featureMap = { "server/shared/**": ["XX-F01"] };
+  const noCode = detect(cfg, { base, head: "HEAD", title: "refactor", branch: "x", labels: [] });
+  assert.deepEqual(noCode.sources.map, ["XX-F01"]);
+  assert.match(noCode.error, /không khai mã feature/); // map không thay việc khai mã
+  const r = detect(cfg, { base, head: "HEAD", title: "fix(XX-F01): x", branch: "x", labels: [] });
+  assert.deepEqual(r.features, ["XX-F01"]);
+  assert.equal(r.error, null);
 });

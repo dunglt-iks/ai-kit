@@ -3,31 +3,64 @@
 // kiểm Claude chỉ ghi vào chỗ được phép (check-paths), cập nhật hash sau khi sửa tay (rehash).
 // Xem docs/03-script-generation.md.
 import { execFileSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { rel, TafError } from "./config.mjs";
 import { matchesAny } from "./detect.mjs";
-import { lintTestcase, parseTestcase, testcasePath } from "./testcase.mjs";
+import { scopeOf } from "./codes.mjs";
+import { approvalHash, lintTestcase, parseTestcase, testcasePath } from "./testcase.mjs";
 
 const SOURCE = /@taf-source\s+(\S+)\s+sha256:([0-9a-f]+)/;
 const TEST_TITLE =
   /\btest(?:\.(only|skip|fixme|fail))?\(\s*[`'"](TC-[A-Za-z0-9-]+?-\d{3})\b/g;
 
+/**
+ * Thay comment JS (// … và /* … *\/) bằng khoảng trắng, giữ nguyên xuống dòng (số dòng không đổi) và nội dung chuỗi
+ * ('…', "…", `…`). Dùng trước khi dò test, để test bị comment không được tính.
+ */
+export function stripComments(src) {
+  let out = "";
+  let i = 0;
+  let quote = null;
+  while (i < src.length) {
+    const c = src[i];
+    const n = src[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\") {
+        out += n ?? "";
+        i += 2;
+        continue;
+      }
+      if (c === quote) quote = null;
+      i++;
+    } else if (c === "/" && n === "/") {
+      while (i < src.length && src[i] !== "\n") (out += " "), i++;
+    } else if (c === "/" && n === "*") {
+      out += "  ";
+      i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) (out += src[i] === "\n" ? "\n" : " "), i++;
+      out += i < src.length ? "  " : "";
+      i += 2;
+    } else {
+      if (c === "'" || c === '"' || c === "`") quote = c;
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
 /** Hash nội dung TC (bỏ khoảng trắng cuối dòng). Đổi TC → đổi hash → sinh lại script. */
 export function tcHash(text) {
-  const norm = text
-    .split("\n")
-    .map((l) => l.trimEnd())
-    .join("\n")
-    .trim();
-  return crypto.createHash("sha256").update(norm).digest("hex").slice(0, 16);
+  // Cùng cách băm với approvedHash: bỏ các dòng do việc duyệt ghi, nên duyệt TC không làm script "lệch".
+  return approvalHash(text);
 }
 
 export function scriptPath(cfg, feature) {
   if (!cfg.scripts.dir)
-    throw new TafError("taf.config.yml chưa khai scripts.dir");
-  return path.join(cfg.root, cfg.scripts.dir, `${feature}${cfg.scripts.ext}`);
+    throw new TafError("ai-kit.yml chưa khai scripts.dir");
+  return path.join(cfg.root, cfg.scripts.dir, scopeOf(cfg, feature), `${feature}${cfg.scripts.ext}`);
 }
 
 /** Dòng đầu script phải có: // @taf-source <TC> sha256:<hash> */
@@ -56,6 +89,8 @@ export function planGen(cfg, features) {
       return { feature, action: "skip", reason: "test case còn lỗi lint" };
     if (parsed.frontmatter?.status !== cfg.labels.approved)
       return { feature, action: "skip", reason: "test case chưa duyệt" };
+    if (!parsed.cases.some((c) => !c.deprecated))
+      return { feature, action: "skip", reason: "không có TC e2e (mọi mã ngoài phạm vi e2e)" };
     const sp = scriptPath(cfg, feature);
     if (!fs.existsSync(sp))
       return { feature, action: "new", reason: "chưa có script" };
@@ -71,12 +106,54 @@ export function planGen(cfg, features) {
   });
 }
 
+const WEAK = /^(toBeVisible|toContainText|toBeTruthy|toBeDefined|toBeAttached|toBeInViewport)$/;
+
+/**
+ * Thống kê assertion trong mã script (đã bỏ comment): theo từng mã TC (khối từ test(...) tới test kế), các lời gọi
+ * test.fail(...) và vị trí toContainText.
+ */
+export function assertionStats(code) {
+  const marks = [...code.matchAll(TEST_TITLE)].map((m) => ({ index: m.index, id: m[2] }));
+  const byTc = {};
+  marks.forEach((m, k) => {
+    const block = code.slice(m.index, marks[k + 1]?.index ?? code.length);
+    const calls = [...block.matchAll(/\bexpect(?:\.soft)?\([\s\S]*?\)\s*(?:\.not)?\s*\.(\w+)\(/g)].map((x) => x[1]);
+    const st = (byTc[m.id] ||= { expects: 0, weak: 0, usesPage: false });
+    if (/\{\s*[^}]*\bpage\b[^}]*\}\s*\)\s*=>|\bpage\./.test(block)) st.usesPage = true;
+    st.expects += calls.length;
+    st.weak += calls.filter((c) => WEAK.test(c)).length;
+  });
+  const fails = [];
+  for (const m of code.matchAll(/\btest\.fail\(/g)) {
+    let depth = 0;
+    let i = m.index + m[0].length - 1;
+    for (; i < code.length; i++) {
+      if (code[i] === "(") depth++;
+      else if (code[i] === ")" && --depth === 0) break;
+    }
+    fails.push({ index: m.index, args: code.slice(m.index, Math.min(i + 1, m.index + 600)) });
+  }
+  const contains = [...code.matchAll(/\.toContainText\(/g)].map((m) => m.index);
+  return { byTc, fails, contains };
+}
+
+/** Nội dung file ở commit `base` (null nếu chưa có / không phải repo git). */
+function committed(cfg, abs, base) {
+  try {
+    const top = git(cfg.root, ["rev-parse", "--show-toplevel"]).trim();
+    const relTop = path.relative(top, fs.realpathSync(abs)).split(path.sep).join("/");
+    return execFileSync("git", ["show", `${base}:${relTop}`], { cwd: top, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Kiểm một script: @taf-source khớp TC, mỗi TC (không DEPRECATED) có test, không có test cho
  * TC lạ hoặc DEPRECATED, không có test.only, không chứa mẫu bị cấm (scripts.forbid).
  * @returns {{ file: string, errors: string[], warnings: string[] }}
  */
-export function checkScript(cfg, feature) {
+export function checkScript(cfg, feature, o = {}) {
   const sp = scriptPath(cfg, feature);
   const file = rel(cfg, sp);
   const errors = [];
@@ -99,7 +176,7 @@ export function checkScript(cfg, feature) {
       errors.push(`@taf-source trỏ ${src.tc}, phải là ${rel(cfg, tcAbs)}`);
     if (src.hash !== tcHash(tcText))
       errors.push(
-        `@taf-source lệch: test case đã đổi sau khi sinh script (${src.hash} ≠ ${tcHash(tcText)}) — sinh lại hoặc \`taf rehash\``,
+        `@taf-source lệch: test case đã đổi sau khi sinh script (${src.hash} ≠ ${tcHash(tcText)}) — sinh lại (/e2e-script) hoặc \`kit rehash\``,
       );
   }
   const { cases } = parseTestcase(cfg, tcText);
@@ -108,25 +185,53 @@ export function checkScript(cfg, feature) {
     cases.filter((c) => c.deprecated).map((c) => c.id),
   );
   const found = new Set();
-  for (const m of text.matchAll(TEST_TITLE)) {
+  const code = stripComments(text);
+  const line = (i) => text.slice(0, i).split("\n").length;
+  for (const m of code.matchAll(TEST_TITLE)) {
     const [, mod, id] = m;
-    const line = text.slice(0, m.index).split("\n").length;
-    if (mod === "only") errors.push(`dòng ${line}: không được dùng test.only`);
+    const ln = line(m.index);
+    if (mod === "only") errors.push(`dòng ${ln}: không được dùng test.only`);
     if (mod === "skip" || mod === "fixme")
-      warnings.push(`dòng ${line}: ${id} bị test.${mod}`);
+      warnings.push(`dòng ${ln}: ${id} bị test.${mod}`);
     if (deprecated.has(id))
-      errors.push(`dòng ${line}: ${id} đã DEPRECATED, xoá test này`);
+      errors.push(`dòng ${ln}: ${id} đã DEPRECATED, xoá test này`);
     else if (!active.has(id))
-      errors.push(`dòng ${line}: ${id} không có trong test case`);
+      errors.push(`dòng ${ln}: ${id} không có trong test case`);
     found.add(id);
   }
   const missing = [...active].filter((id) => !found.has(id));
   if (missing.length) errors.push(`thiếu test cho: ${missing.join(", ")}`);
-  const lines = text.split("\n");
+  const q = assertionStats(code);
+  // test.fail (lỗi đã biết) phải dẫn issue — không thì một test đang bắt bug có thể bị "tắt" lặng lẽ
+  for (const f of q.fails)
+    if (!/\/issues\/\d+|#\d+/.test(f.args))
+      errors.push(`dòng ${line(f.index)}: test.fail phải kèm link issue (vd test.fail(true, "Lỗi app đã biết: <url issue>"))`);
+  for (const [id, st] of Object.entries(q.byTc)) {
+    if (!active.has(id)) continue;
+    if (!st.expects) errors.push(`${id}: không có expect nào — test không kiểm gì`);
+    else if (st.expects === st.weak)
+      warnings.push(`${id}: chỉ có assertion yếu (toBeVisible / toContainText…) — kiểm đúng giá trị TC ghi (toHaveText, toHaveValue…)`);
+  }
+  // TC tầng api: kiểm qua `request` (nhanh, ổn định), không mở trình duyệt
+  for (const c of cases.filter((x) => !x.deprecated && x.layer === "api"))
+    if (q.byTc[c.id]?.usesPage)
+      warnings.push(`${c.id}: tầng api nhưng test dùng \`page\` — kiểm qua fixture \`request\`, không mở trình duyệt`);
+  for (const i of q.contains) warnings.push(`dòng ${line(i)}: toContainText — nên toHaveText trên đúng ô / phần tử (khớp chính xác giá trị TC)`);
+  // Số expect giảm so với bản đã commit: dấu hiệu test bị nới — người review xem kỹ
+  const before = committed(cfg, sp, o.base || "HEAD");
+  if (before != null) {
+    const old = assertionStats(stripComments(before)).byTc;
+    for (const [id, st] of Object.entries(old)) {
+      const now = q.byTc[id]?.expects ?? 0;
+      if (active.has(id) && now < st.expects)
+        warnings.push(`${id}: số expect giảm ${st.expects} → ${now} so với ${o.base || "HEAD"} — kiểm tra test có bị nới không`);
+    }
+  }
+  const lines = code.split("\n"); // đã bỏ comment
   for (const pattern of cfg.scripts.forbid || []) {
     const re = new RegExp(pattern);
     lines.forEach((l, i) => {
-      if (!l.trim().startsWith("//") && re.test(l))
+      if (re.test(l))
         errors.push(`dòng ${i + 1}: chứa mẫu bị cấm /${pattern}/`);
     });
   }
@@ -170,22 +275,70 @@ export function changedFiles(cfg, base = "HEAD") {
 /** File đã đổi mà không nằm trong scripts.allowedPaths. */
 export function checkPaths(cfg, base) {
   const files = changedFiles(cfg, base);
+  const tcDir = `${cfg.testcases.dir.replace(/\/$/, "")}/`;
+  /** File TC đổi: chấp nhận khi là nháp, hoặc đã duyệt mà approvedHash còn khớp (người vừa duyệt, chưa commit). */
+  const tcOk = (f) => {
+    if (!f.startsWith(tcDir) || !f.endsWith(".md")) return false;
+    const abs = path.join(cfg.root, f);
+    if (!fs.existsSync(abs)) return false;
+    return !lintTestcase(cfg, abs).issues.some((i) => /approvedHash/.test(i.msg));
+  };
   return {
     files,
     outside: files.filter(
-      (f) => f.startsWith("../") || !matchesAny(f, cfg.scripts.allowedPaths),
+      (f) => f.startsWith("../") || (!matchesAny(f, cfg.scripts.allowedPaths) && !tcOk(f)),
     ),
   };
 }
 
-/** Mọi feature đang có script trong scripts.dir. */
+/** Mọi feature đang có script trong scripts.dir (<dir>/<module>/<MÃ><ext>). */
 export function listScripts(cfg) {
   if (!cfg.scripts.dir) return [];
   const dir = path.join(cfg.root, cfg.scripts.dir);
   if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    for (const f of fs.readdirSync(path.join(dir, e.name)))
+      if (f.endsWith(cfg.scripts.ext)) out.push(f.slice(0, -cfg.scripts.ext.length));
+  }
+  return out.sort();
+}
+
+/** Script nằm phẳng ngay trong scripts.dir (cấu trúc cũ) — tuyệt đối. */
+export function flatScripts(cfg) {
+  if (!cfg.scripts.dir) return [];
+  const dir = path.join(cfg.root, cfg.scripts.dir);
+  if (!fs.existsSync(dir)) return [];
   return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(cfg.scripts.ext))
-    .map((f) => f.slice(0, -cfg.scripts.ext.length))
-    .sort();
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(cfg.scripts.ext))
+    .map((e) => path.join(dir, e.name));
+}
+
+/**
+ * Dời script phẳng vào <scripts.dir>/<module>/ và sửa import tương đối cho đúng tầng mới.
+ * @returns {{ from: string, to: string }[]} đường dẫn tương đối gốc dự án
+ */
+export function migrateScripts(cfg, { dryRun = false } = {}) {
+  const moved = [];
+  for (const abs of flatScripts(cfg)) {
+    const feature = path.basename(abs).slice(0, -cfg.scripts.ext.length).toUpperCase();
+    const to = scriptPath(cfg, feature);
+    if (fs.existsSync(to)) continue;
+    moved.push({ from: rel(cfg, abs), to: rel(cfg, to) });
+    if (dryRun) continue;
+    const text = fs
+      .readFileSync(abs, "utf8")
+      .replace(/(from\s+["'])(\.{1,2}\/[^"']+)(["'])/g, (m, a, p, b) => {
+        const target = path.resolve(path.dirname(abs), p);
+        let r = path.relative(path.dirname(to), target).split(path.sep).join("/");
+        if (!r.startsWith(".")) r = `./${r}`;
+        return `${a}${r}${b}`;
+      });
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.writeFileSync(to, text);
+    fs.rmSync(abs);
+  }
+  return moved;
 }

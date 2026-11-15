@@ -1,11 +1,11 @@
 {
-  "name": "taf",
-  "version": "1.0.0",
+  "name": "ai-kit",
+  "version": "2.0.0",
   "private": true,
-  "description": "Test Automation Framework — spec → test case → Playwright → bug",
+  "description": "ai-kit — quy trình spec → prototype → dev → test → ship cho AI, kèm Test Automation Framework (e2e)",
   "type": "module",
   "bin": {
-    "taf": "cli/bin/taf.mjs"
+    "kit": "cli/bin/kit.mjs"
   },
   "engines": {
     "node": ">=20"

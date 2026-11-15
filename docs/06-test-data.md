@@ -14,7 +14,7 @@ TC chỉ mô tả **trạng thái** cần có ("đơn có 2 dòng, đã duyệt"
 ## Fixture tự dọn (gợi ý)
 
 ```ts
-// e2e/fixtures.ts của dự án
+// e2e/support/fixtures.ts của dự án (cấu trúc e2e/: 01 §3.1)
 export const test = base.extend<{ fx: Factories }>({
   fx: async ({ request }, use) => {
     const created: (() => Promise<void>)[] = [];
@@ -25,6 +25,12 @@ export const test = base.extend<{ fx: Factories }>({
 ```
 
 Script sinh ra import `test` từ fixture của dự án, không từ `@playwright/test`. Hướng dẫn trong `scripts.guide` phải nói rõ điều này.
+
+**Dữ liệu tạo qua giao diện** (TC có bước "Lưu") cũng phải dọn: page object trả mã bản ghi vừa tạo (đọc từ thông báo, URL
+hoặc response), script đăng ký dọn qua fixture (vd `fx.track(id)`). Dọn lỗi không làm test fail nhưng fixture ghi
+annotation `cleanup` (`testInfo.annotations.push({ type: "cleanup", description })`) — báo cáo của kit có mục
+**Dọn dữ liệu test lỗi** để thấy môi trường đang bẩn dần (vd API dọn không bật trên môi trường dev). Ví dụ:
+`examples/demo/e2e/support/fixtures.mjs`.
 
 ## Bảng "Dữ liệu kiểm tra"
 

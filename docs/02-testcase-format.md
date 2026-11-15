@@ -17,10 +17,11 @@ e2e/testcases/
 ---
 feature: DL-F05
 spec: docs/features/addon/DL-deal/FSD-deal/05-items.md
-specHash: "3240100cb28002d8" # hash phần spec lúc sinh TC (`taf spec <mã> --hash`), luôn đặt trong ngoặc kép
-status: Đã duyệt              # Nháp | Đã duyệt
-reviewer: dunglt-iks
+specHash: "3240100cb28002d8" # hash phần spec lúc sinh TC (`kit spec <mã> --hash`), luôn đặt trong ngoặc kép
+status: Đã duyệt              # Nháp | Đã duyệt — do kit approve <MÃ> --testcase ghi
+reviewer: "dunglt-iks"        # do kit approve ghi
 persona: sale                 # mặc định cho cả file, TC có thể ghi đè
+approvedHash: "9f2c…"         # do kit approve ghi: hash nội dung TC lúc duyệt — không sửa tay
 ---
 
 ## TC-DL-F05-001 · Thêm dòng sản phẩm từ bảng giá
@@ -60,7 +61,11 @@ persona: sale                 # mặc định cho cả file, TC có thể ghi đ
 - **Persona:** ghi đè persona của file. Bắt buộc với TC kiểm quyền hoặc phạm vi dữ liệu.
 - **Tiền điều kiện:** mô tả *trạng thái cần có* bằng lời. Không viết code. Script tạo trạng thái này qua fixture (xem [06](06-test-data.md)).
 - **Dữ liệu kiểm tra:** bảng dữ liệu. Mỗi dòng sinh thành một test.
-- **Ưu tiên:** P1 chạy trong smoke, P2/P3 chạy trong hồi quy đầy đủ.
+- **Ưu tiên:** P1 chạy kèm mọi PR (phạm vi `changed` chạy thêm TC P1 của các feature khác — `run.smokePriority`), P2/P3
+  chạy trong hồi quy đầy đủ.
+- **Tầng** (tuỳ chọn, mặc định `e2e`): `e2e` — kiểm qua giao diện; `api` — kiểm qua API bằng fixture `request` của
+  Playwright, không mở trình duyệt (quy tắc tính toán, kiểm dữ liệu nhập, phân quyền ở server: nhanh, ổn định hơn). Thứ chỉ
+  kiểm được ở unit test không viết thành TC mà đưa vào mục "Ngoài phạm vi e2e".
 
 ### Bộ nhãn
 
@@ -68,7 +73,7 @@ Khoá frontmatter luôn tiếng Anh. Nhãn trong thân file và giá trị `stat
 
 | Khoá | `vi` | `en` |
 |---|---|---|
-| Truy vết / màn hình / ưu tiên / persona | Truy vết, Màn hình, Ưu tiên, Persona | Trace, Screens, Priority, Persona |
+| Truy vết / màn hình / ưu tiên / persona / tầng | Truy vết, Màn hình, Ưu tiên, Persona, Tầng | Trace, Screens, Priority, Persona, Layer |
 | Tiền điều kiện / dữ liệu | Tiền điều kiện, Dữ liệu kiểm tra | Preconditions, Test data |
 | Cột bảng bước | Bước, Kết quả mong đợi | Step, Expected result |
 | Mục ngoài phạm vi | Ngoài phạm vi e2e (Mã, Lý do, Kiểm ở đâu) | Out of e2e scope (Code, Reason, Covered by) |
@@ -92,19 +97,21 @@ Gate lấy danh sách mã bắt buộc từ spec adapter (`requiredCodes`). Mộ
 | DL-F05-US03-E2 | Lỗi đồng thời hai người sửa, khó tái hiện ổn định trên UI | Go test `items_test.go` |
 ```
 
+Feature không có gì kiểm được qua giao diện (thuần backend): file TC chỉ có mục ngoài phạm vi, không có `## TC-…`.
+Lint chỉ cảnh báo, gate không đòi script, `/e2e-script` bỏ qua.
+
 ## 4. Phát hiện TC lỗi thời
 
-`specHash` là hash phần spec của feature lúc sinh TC (adapter tính, `taf spec <mã> --hash`). Khi spec đổi, hash hiện tại khác `specHash` và gate báo **TC lỗi thời**. Người review cập nhật TC (hoặc chạy lại `/testcase` ở chế độ đồng bộ), duyệt lại, rồi ghi hash mới.
+`specHash` là hash phần spec của feature lúc sinh TC (adapter tính, `kit spec <mã> --hash`). Adapter `prd-fsd` băm cả định nghĩa các quy tắc `BR` mà feature dẫn tới nhưng khai ở chỗ khác trong module (bảng quy tắc của PRD, feature khác) — BR dùng chung đổi thì TC của mọi feature dẫn tới nó đều lỗi thời. Khi spec đổi, hash hiện tại khác `specHash` và gate báo **TC lỗi thời**. Người review cập nhật TC (hoặc chạy lại `/testcase` ở chế độ đồng bộ), duyệt lại, rồi ghi hash mới.
 
 ## 5. Quy trình sinh và duyệt
 
 ```
 Spec Đã duyệt
-  ├─ local: /testcase DL-F05 ─────────────┐
-  └─ CI: testcase-draft.yml mở PR nháp ───┤
+  └─ ở máy: /testcase DL-F05 (CI không soạn TC từ 2.0)
                                           ▼
                          TC status: Nháp (Claude sinh)
-                                          │ người review sửa, bổ sung case biên
+                                          │ người review sửa, bổ sung case biên, kit approve <MÃ> --testcase
                                           ▼
                          TC status: Đã duyệt, reviewer: <login>
                                           │ push lên nhánh code / merge PR testcase
@@ -113,5 +120,9 @@ Spec Đã duyệt
 ```
 
 - `/testcase` **từ chối chạy** khi spec của feature còn Nháp.
-- Chỉ người review được đổi `status` sang Đã duyệt. Claude không tự đặt Đã duyệt.
+- Chỉ người review duyệt TC, bằng `kit approve <MÃ> --testcase`: ghi `status`, `reviewer` (git user) và
+  `approvedHash` — hash nội dung TC lúc duyệt (bỏ ba dòng này). Lệnh từ chối TC còn lỗi lint, chưa có `specHash`
+  hoặc lỗi thời so với spec. Claude không tự duyệt.
+- **TC sửa sau khi duyệt** (nội dung khác `approvedHash`, kể cả khi đã `kit rehash` script): `lint-tc`, gate báo
+  lỗi, `plan-gen` không sinh script, `check-paths` coi là sửa ngoài phạm vi. Người review xem lại rồi duyệt lại.
 - Chạy lại `/testcase` trên file đã có là **chế độ đồng bộ**: chỉ thêm TC cho nhánh mới, đánh dấu TC có nhánh đã bỏ là `[DEPRECATED]`, đưa `status` về Nháp.

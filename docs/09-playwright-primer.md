@@ -40,7 +40,7 @@ App phải đang chạy:  Postgres + Redis ◄─ Backend :8090 ◄─ Frontend 
 6. Xuất kết quả: list / HTML / JSON
 ```
 
-**Playwright không tự dựng app.** App phải chạy sẵn: lệnh `start` của target `ci` (dự án viết) dựng DB, BE, FE trước, hoặc test vào môi trường đã deploy.
+**Playwright không tự dựng app** (trừ khi dự án cấu hình `webServer`). App phải chạy sẵn: CI của dự án dựng DB, BE, FE trước rồi gọi `kit e2e --base-url …`, hoặc test vào môi trường đã deploy ([05](05-environments.md)).
 
 ## 4. TAF nằm ở đâu
 
@@ -48,14 +48,14 @@ TAF không thay Playwright. Nó lo phần xung quanh: viết TC, sinh script, ch
 
 | Ai | Làm gì |
 |---|---|
-| BA / reviewer | Duyệt TC markdown (không cần biết code) |
-| Claude | Sinh TC nháp, dịch TC sang script, đọc lỗi |
+| BA / reviewer | Duyệt TC markdown (không cần biết code), bằng `kit approve <mã> --testcase` |
+| Claude (ở máy) | Sinh TC nháp, dịch TC sang script, phân loại lỗi |
 | Playwright | Mở trình duyệt, chạy script, báo pass/fail, ghi trace |
 | TAF | Nối các bước, gate, ghi bug, báo cáo |
 
 ## 5. Lệnh hay dùng
 
-Khi BE (`cd server && make http`) và FE (`cd web && pnpm dev`) đang chạy:
+Ví dụ trong app-base, khi BE (`cd server && make http`) và FE (`cd web && pnpm dev`) đang chạy:
 
 ```bash
 cd web
@@ -71,5 +71,5 @@ pnpm exec playwright codegen localhost:8001          # tự bấm, Playwright vi
 
 ## 6. Đọc thêm
 
-- `docs/guide-en/testing.md`: quy ước test của repo, mục "Requirement traceability"
+- Ví dụ app-base: `docs/guide-en/testing.md` (quy ước test của repo, mục "Requirement traceability")
 - Tài liệu chính thức: playwright.dev (Locators, Assertions, Trace viewer, Authentication)

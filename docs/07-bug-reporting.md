@@ -3,33 +3,61 @@
 ## 1. Luồng sau khi chạy
 
 ```
-taf run (JSON report)
-  └─ có test fail + có token AI → Claude triage (prompts/triage.md) → e2e/test-results/triage.json
-                                    └─ lỗi script: sửa, chạy lại (taf run --merge), tối đa 2 vòng
-taf report  → bảng theo feature, taf-result.json, comment PR
-  └─ --file-bugs → bug app → issue theo fingerprint
+CI: kit e2e (JSON report, artifact) → bảng theo feature, comment PR, đóng bug đã hết (--close-fixed)
+        test fail chưa phân loại: không ghi bug, comment nhắc /e2e-triage
+Máy: /e2e-triage [run-id CI]
+  └─ lấy report (ở máy, hoặc gh run download từ CI) → Claude triage (prompts/triage.md) → triage.json
+       └─ lỗi script: sửa, chạy lại (kit e2e <mã> --merge), tối đa 2 vòng — chỉ khi truy cập được app từ máy
+  └─ kit report → người dùng xem → đồng ý → kit file-bugs → bug app → issue theo fingerprint
 ```
 
-Action `report` làm cả chuỗi này. Không có token AI thì bỏ qua triage; test fail lúc đó được coi là loại `--assume` (vd `app-bug`), để trống thì không ghi bug và báo "chưa phân loại".
+CI không gọi AI (D8). `kit e2e` trên CI chỉ báo cáo và (`--close-fixed`) đóng bug có TC đã pass; test fail chưa phân
+loại không thành bug — tránh bug giả do lỗi môi trường / chập chờn. Chỉ test đã phân loại `app-bug` trong
+`triage.json` mới thành bug.
+Phân loại và ghi bug làm ở máy bằng `/e2e-triage` ([`process/e2e-triage.md`](../process/e2e-triage.md)): kết quả CI
+tải về bằng `gh run download`, chép `results.json` vào `run.report` (mặc định `e2e/test-results/raw/results.json`); tracker `github` ở máy cần
+`GITHUB_TOKEN=$(gh auth token)` và `GITHUB_REPOSITORY=<owner>/<repo>`.
 
 ## 2. Triage
 
 | Loại | Dấu hiệu | Hành động |
 |---|---|---|
 | `app-bug` | App khác kết quả mong đợi của TC, TC đúng spec | Ghi issue |
-| `script-bug` | Locator sai, thiếu chờ, dựng dữ liệu sai | Sửa script / page object, chạy lại; bản sửa được commit |
+| `script-bug` | Locator sai, thiếu chờ, dựng dữ liệu sai | Sửa script / page object, chạy lại; người dùng commit bản sửa |
 | `env` | App không lên, mạng, môi trường bẩn | Không ghi bug |
 | `flaky` | Lúc pass lúc fail | Không ghi bug; báo cáo liệt kê test flaky (Playwright retry) |
-| `tc-wrong` | TC mâu thuẫn spec | Không ghi bug; cần sửa TC |
+| `tc-wrong` | TC mâu thuẫn spec | Không ghi bug. Báo cáo có mục **Test case cần xem lại** (mã TC, vì sao, bước làm: `/testcase` → `kit approve --testcase` → `/e2e-script` → `kit e2e`). AI không tự sửa TC |
 
 Nguyên tắc: **triage không sửa code ứng dụng, không sửa script cho khớp app sai.**
 
-`triage.json`: `[{ "test": "<tên test>", "class": "app-bug", "summary": "…", "fixed": false }]`.
+`triage.json` (cạnh `run.report`): `[{ "test": "<tên test>", "fingerprint": "<của lỗi đó>", "class": "app-bug",
+"summary": "…", "fixed": false }]` — `fixed`: script đã sửa và chạy lại pass. Mục có `fingerprint` chỉ áp cho đúng lỗi đó
+(test fail lại vì lý do khác → chưa phân loại). `kit e2e` không `--merge` xoá `triage.json` cũ khi bắt đầu chạy.
+
+## 2b. Lịch sử, test chập chờn, cách ly
+
+- **Lịch sử:** mỗi lần `kit e2e` đầy đủ (không `--merge` / `--grep`) ghi một dòng vào `run.history` (mặc định
+  `e2e/test-results/history.jsonl`, giữ `run.keepHistory` = 50 lần). Trên CI, action `e2e` giữ file bằng cache.
+- **`kit flaky [--last N] [--env dev]`:** tỷ lệ pass / fail / flaky của từng test qua N lần gần nhất; "chập chờn" = có cả
+  pass lẫn fail / flaky. `/e2e-triage` dựa vào đây để phân loại `flaky`, không tự đoán.
+- **Cách ly** (`run.quarantine`, mặc định `e2e/quarantine.yml`, commit cùng repo):
+
+  ```yaml
+  - test: TC-DM-F01-004          # tên test hoặc mã TC
+    issue: https://github.com/o/r/issues/31
+    until: 2026-12-31            # hết hạn thì tự hết cách ly
+    reason: chập chờn khi tải danh sách lớn
+  ```
+
+  Test đang cách ly mà fail: báo ở mục **Cách ly** của báo cáo, không làm đỏ lần chạy, không ghi bug. Hết hạn: tính như
+  test thường, `kit doctor` cảnh báo. Thiếu `issue` / `until`: lỗi cấu hình, lần chạy đỏ.
 
 ## 3. Bug và vòng đời
 
 - **Fingerprint** = mã TC (hoặc tên test nếu không có mã) + chữ ký lỗi: các dòng `Error`, `Locator`, `Expected` của thông báo, bỏ giá trị thực tế, số trong locator, mã `#N`, thời gian. Cùng lỗi ở lần chạy sau → cùng fingerprint.
-- Issue: tiêu đề `[e2e] <tên test>`, nhãn `tracker.labels` + `feature:<MÃ>`, thân có test, TC, file:dòng, target, commit, link run (artifact có trace và ảnh), thông báo lỗi, phân tích của triage, và hai marker ẩn `taf:fp`, `taf:tc`.
+- Issue: tiêu đề `[e2e] <tên test>`, nhãn `tracker.labels` + `feature:<MÃ>`, thân có test, TC, file:dòng, môi trường (`--env`), commit, link run (artifact có trace và ảnh), thông báo lỗi, phân tích của triage, và marker ẩn `taf:fp`, `taf:tc`, `taf:tests` (tên các test đã fail).
+- Nhiều test cùng fingerprint trong một lần chạy (các dòng của test theo bảng dữ liệu, cùng TC trên nhiều trình duyệt)
+  → **một** issue, thân liệt kê đủ các test.
 
 | Tình huống | Hành động |
 |---|---|
@@ -37,9 +65,10 @@ Nguyên tắc: **triage không sửa code ứng dụng, không sửa script cho 
 | Có issue đang mở | Comment "vẫn lỗi ở …" |
 | Có issue đã đóng (đã sửa) | Mở lại, comment lỗi |
 | Chỉ có issue người đóng dạng *not planned* | Bỏ qua: tôn trọng quyết định "không phải bug / không sửa" |
-| `--close-fixed`: issue đang mở mà mọi test của TC đó đã pass lần này | Comment rồi đóng |
+| `--close-fixed`: issue đang mở mà **chính các test đã fail** (marker `taf:tests`) đều chạy lại và pass lần này — test không chạy, bị skip hay là lỗi đã biết thì giữ; chạy một phần (`--grep`) thì không đóng gì | Comment rồi đóng |
 
-Nhiều issue cùng fingerprint: chọn đang mở, rồi đã đóng *completed* mới nhất.
+Nhiều issue cùng fingerprint: chọn đang mở, rồi đã đóng *completed* mới nhất. `file-bugs --dry-run` không có
+`GITHUB_TOKEN` thì không tra được issue đã có — kế hoạch in ra là "tạo" cho mọi lỗi, kèm cảnh báo.
 
 Lưu ý: bộ lọc nhãn của GitHub cập nhật chậm vài giây sau khi tạo issue. Hai lần `file-bugs` cách nhau dưới khoảng đó có thể tạo trùng; trong CI các lần chạy cách nhau nhiều phút nên không gặp.
 
@@ -47,7 +76,7 @@ Lưu ý: bộ lọc nhãn của GitHub cập nhật chậm vài giây sau khi t�
 
 ## 4. Báo cáo
 
-`taf report` (comment PR chỉ một, sửa lại mỗi lần chạy):
+`kit report` (comment PR chỉ một, sửa lại mỗi lần chạy):
 
 ```markdown
 ## E2E-TAF · ✘ 2 test fail · 22/24 pass
@@ -72,12 +101,19 @@ Lưu ý: bộ lọc nhãn của GitHub cập nhật chậm vài giây sau khi t�
 
 Test kiểm đúng TC nhưng fail vì app làm khác TC/spec, mà chưa sửa ngay: **không sửa test cho khớp app**. Dự án ghi issue, đánh dấu test bằng `test.fail(true, "Lỗi app đã biết: <link issue>")` (cách đặt do hướng dẫn của dự án quy định, vd danh sách `KNOWN_BUGS` đầu script).
 
-| Kết quả | `taf report` | Ghi bug |
+| Kết quả | `kit report` | Ghi bug |
 |---|---|---|
 | Test fail đúng như dự kiến | Mục **Lỗi đã biết** riêng, kèm link issue; không tính pass, không tính fail; job không đỏ | Không (đã có issue). TC còn lỗi đã biết thì `--close-fixed` không coi là đã pass |
 | Test lại **pass** (app có thể đã sửa) | Tính là **fail**: "Test đánh dấu lỗi đã biết nhưng đã pass — gỡ dấu"; job đỏ để nhắc gỡ | Không |
 
-`taf-result.json` (cùng thư mục với `run.report`): tổng, theo feature, danh sách lỗi (fingerprint, triage), lỗi đã biết (`known`), test flaky, từng test, bug đã ghi. Dùng để tổng hợp về sau.
+Mỗi lần `kit e2e` / `kit report` ghi hai thứ:
+
+- **Cho người đọc:** `run.reportsDir/latest.md` (mặc định `e2e/test-results/reports/`) và một bản theo lần chạy
+  `<YYYY-MM-DD-HHmm>-<env>.md` (giữ `run.keepReports` bản gần nhất, mặc định 20). Nội dung như comment PR: bảng theo
+  feature, test fail kèm mã TC, **bước fail** (tên `test.step`), lỗi rút gọn, đường dẫn ảnh / trace để mở ngay, loại
+  lỗi sau `/e2e-triage`, dữ liệu test dọn lỗi (annotation `cleanup`). Trên CI nằm trong artifact.
+- **Cho máy:** `result.json` cạnh `run.report` (mặc định `e2e/test-results/raw/`): tổng, theo feature, danh sách lỗi
+  (fingerprint, triage), lỗi đã biết (`known`), test flaky, từng test, bug đã ghi.
 
 ## 5. Tracker adapter
 

@@ -3,8 +3,9 @@ feature: DM-F02
 spec: docs/features/addon/DM-demo/FSD-demo.md
 specHash: "4fce79a8528745d6"
 status: Đã duyệt
-reviewer: taf-demo
+reviewer: "taf-demo"
 persona: sale
+approvedHash: "0aa2f11a66078408"
 ---
 
 # Test case — DM-F02 Tạo đơn hàng
