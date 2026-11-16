@@ -36,7 +36,7 @@ repo; quy trình theo kit; mâu thuẫn thật thì AI dừng hỏi.
 ## Áp dụng cho một repo
 
 ```bash
-git clone --depth 1 -b v2 https://github.com/dunglt-iks/ai-kit .ai-kit && node .ai-kit/cli/bin/kit.mjs init
+git clone --depth 1 -b v2 https://github.com/dunglt-iks/ai-kit .ai-kit && bash .ai-kit/setup.sh
 ```
 
 `kit init` tạo `ai-kit.yml`, cài lệnh `/spec … /ship` và agent vào `.claude/`, chèn khối cầu nối, thêm `.gitignore`,

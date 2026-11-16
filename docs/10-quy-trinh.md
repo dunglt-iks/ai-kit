@@ -101,8 +101,9 @@ file **không** có dấu là lệnh riêng của repo (vd repo đã có `/spec`
 
 ## 4. Áp dụng vào một repo
 
-1. **Nhúng (một dòng):** `git clone --depth 1 -b v2 https://github.com/dunglt-iks/ai-kit .ai-kit && node
-   .ai-kit/cli/bin/kit.mjs init` → `ai-kit.yml` (dò `guides`, `agents`, `kitRef`), vỏ lệnh/agent, khối cầu nối,
+1. **Nhúng (một dòng):** `git clone --depth 1 -b v2 https://github.com/dunglt-iks/ai-kit .ai-kit && bash
+   .ai-kit/setup.sh` (kiểm Node / npm / git, cài thư viện của kit, xem trước rồi hỏi trước khi `kit init`, tuỳ chọn thêm
+   lệnh tắt `kit`; `--update` để nâng cấp, `--yes` cho CI) → `ai-kit.yml` (dò `guides`, `agents`, `kitRef`), vỏ lệnh/agent, khối cầu nối,
    `.gitignore`, rồi tự kiểm (như `kit doctor`). Không đụng `.github/`. `--dry-run` để xem trước.
 2. **`/kit-adopt`** trong Claude Code → AI đề xuất giá trị `ai-kit.yml` có căn cứ (`run.command`, `stack.checks`…),
    liệt kê mâu thuẫn guides ↔ kit, gợi ý chỗ cắm `actions/e2e` vào CI sẵn có → người duyệt → commit.
