@@ -2,7 +2,7 @@
 
 > AI đọc file này ở bước 0 của mọi lệnh quy trình, sau `kit context`. Giá trị cụ thể (thư mục, mẫu mã,
 > chữ trạng thái, ngôn ngữ…) lấy từ `ai-kit.yml` qua `kit context` — tài liệu này chỉ dùng tên khoá.
-> Ví dụ mã trong file dùng module giả `DM` (như `examples/demo`). `kit` = `node .ai-kit/cli/bin/kit.mjs`.
+> Ví dụ mã trong file dùng module giả `DM` (đơn hàng). `kit` = `node .ai-kit/cli/bin/kit.mjs`.
 
 ## 1. Hai lớp quy định
 

@@ -19,77 +19,11 @@ jobs:
           node-version: '20'
       - run: npm ci --no-audit --no-fund
       - run: npm test
-      - name: kit init trên repo trống, rồi doctor
+      - name: setup.sh trên repo trống (cài kit một lệnh), chạy lại lần hai, rồi doctor
         run: |
           d="$RUNNER_TEMP/empty" && mkdir -p "$d" && cd "$d" && git init -q
-          node "$GITHUB_WORKSPACE/cli/bin/kit.mjs" init
           ln -s "$GITHUB_WORKSPACE" .ai-kit
+          bash .ai-kit/setup.sh --yes
+          bash .ai-kit/setup.sh --yes
+          test -f ai-kit.yml && test -f .claude/commands/spec.md
           node .ai-kit/cli/bin/kit.mjs doctor
-
-  # Dự án mẫu: phần của dự án (cài, dựng app) rồi điểm cắm ai-kit (actions/e2e) — đúng như repo dùng kit.
-  # Biến thể "bug" bật lỗi cài sẵn (DEMO_BUG=discount): đúng 2 test fail, không bug nào bị ghi khi chưa phân loại;
-  # phân loại giả lập (triage.json) → file-bugs lập kế hoạch đúng 2 bug.
-  demo:
-    needs: unit
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [clean, bug]
-    env:
-      DEMO_BUG: ${{ matrix.variant == 'bug' && 'discount' || '' }}
-    defaults:
-      run:
-        working-directory: examples/demo
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Phần của dự án — cài phụ thuộc, trình duyệt, dựng app
-        run: |
-          npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
-          bash ci/app-up.sh
-      - name: Kit nhúng đúng + gate + script khớp TC
-        run: |
-          ln -s ../.. .ai-kit
-          npm ci --omit=dev --no-audit --no-fund --prefix ../..
-          node .ai-kit/cli/bin/kit.mjs doctor
-          node .ai-kit/cli/bin/kit.mjs gate DM-F01 DM-F02
-          node .ai-kit/cli/bin/kit.mjs check-script
-          node .ai-kit/cli/bin/kit.mjs lint-script
-      - uses: ./actions/e2e
-        with:
-          root: examples/demo
-          scope: all
-          base-url: http://127.0.0.1:4310
-          env: ci
-          fail-on: never
-          publish: 'false'                # job kiểm nội bộ (có biến thể cố ý bật lỗi): không comment lên PR
-          artifact: demo-${{ matrix.variant }}
-      - name: Kiểm kết quả
-        env:
-          VARIANT: ${{ matrix.variant }}
-        run: |
-          node -e '
-            const fs = require("fs");
-            const r = require("./e2e/test-results/raw/result.json");
-            const want = process.env.VARIANT === "bug" ? 2 : 0;
-            console.log("fail:", r.totals.failed);
-            if (r.totals.failed !== want) { console.error(`phải có ${want} test fail`); process.exit(1); }
-            if (r.totals.tests < 20) { console.error("thiếu test"); process.exit(1); }
-            // giả lập /e2e-triage: mọi test fail là lỗi app
-            fs.writeFileSync("e2e/test-results/raw/triage.json", JSON.stringify(r.failures.map((f) => ({ test: f.title, class: "app-bug", summary: "ci" }))));
-          '
-          node .ai-kit/cli/bin/kit.mjs file-bugs --dry-run | tee bugs.txt
-          want=$([ "$VARIANT" = bug ] && echo 2 || echo 0)
-          got=$(grep -c "tạo issue" bugs.txt || true)
-          [ "$got" = "$want" ] || { echo "phải lập kế hoạch ghi $want bug (có $got)"; exit 1; }
-      - name: Tắt app (phần của dự án)
-        if: always()
-        run: bash ci/app-down.sh

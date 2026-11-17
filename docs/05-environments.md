@@ -38,7 +38,7 @@ TC có dòng `persona: sale`. Với TAF đó chỉ là **một cái tên**:
 
 ## 3. Gợi ý cách dự án tự làm
 
-Không bắt buộc, chỉ là cách đã dùng trong [`examples/demo`](../examples/demo/) và dự kiến cho app-base:
+Không bắt buộc, chỉ là cách đã dùng trong [`examples/project1`](../examples/project1/) và dự kiến cho app-base:
 
 | Việc | Gợi ý |
 |---|---|

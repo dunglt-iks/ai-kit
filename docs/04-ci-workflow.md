@@ -130,8 +130,7 @@ jobs:
           close-fixed: 'true'
 ```
 
-Ví dụ chạy thật: [`.github/workflows/demo-e2e-spec.yml`](../.github/workflows/demo-e2e-spec.yml) (dự án mẫu
-`examples/demo`). Hệ CI khác GitHub: clone kit theo `kitRef`, `npm ci --prefix .ai-kit --omit=dev`, rồi gọi
+Hệ CI khác GitHub: clone kit theo `kitRef`, `npm ci --prefix .ai-kit --omit=dev`, rồi gọi
 `node .ai-kit/cli/bin/kit.mjs e2e …` (không có `--publish`: kết quả ở `e2e/test-results/reports/latest.md`, `raw/result.json` và mã thoát).
 
 ## 4. Người, AI, CI làm gì

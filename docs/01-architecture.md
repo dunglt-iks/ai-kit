@@ -49,7 +49,7 @@ repo dự án (CWD)                         .ai-kit/  (ai-kit @ tag đã ghim)
 ├── playwright.config.mjs                ├── adapters/   spec (prd-fsd), tracker (github), agent (claude, agents-md)
 ├── e2e/        (§3.1)                   ├── claude/     vỏ lệnh/agent cài vào .claude/
 └── .github/workflows/  của dự án        ├── templates/  ai-kit.yml, khuôn PRD/FSD/kế hoạch/prototype
-    (thêm một bước actions/e2e nếu muốn) └── examples/demo/  dự án mẫu chạy đủ luồng
+    (thêm một bước actions/e2e nếu muốn) └── examples/project1/  dự án mẫu (Go + Next.js)
 ```
 
 ### 3.1 Thư mục `e2e/`

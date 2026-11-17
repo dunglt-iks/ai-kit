@@ -30,7 +30,7 @@ Script sinh ra import `test` từ fixture của dự án, không từ `@playwrig
 hoặc response), script đăng ký dọn qua fixture (vd `fx.track(id)`). Dọn lỗi không làm test fail nhưng fixture ghi
 annotation `cleanup` (`testInfo.annotations.push({ type: "cleanup", description })`) — báo cáo của kit có mục
 **Dọn dữ liệu test lỗi** để thấy môi trường đang bẩn dần (vd API dọn không bật trên môi trường dev). Ví dụ:
-`examples/demo/e2e/support/fixtures.mjs`.
+`examples/project1/e2e/support/fixtures.ts` (`fx.user`, `fx.track`).
 
 ## Bảng "Dữ liệu kiểm tra"
 

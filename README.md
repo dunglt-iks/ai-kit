@@ -5,8 +5,8 @@ kèm **TAF** (Test Automation Framework) cho e2e: spec → test case markdown �
 của dự án) → báo cáo → bug.
 
 > Trạng thái: **v2.0.0**. Bản TAF 1.x ở nhánh [`release/1.x`](https://github.com/dunglt-iks/ai-kit/tree/release/1.x)
-> (sửa lỗi cắt tag `v1.0.x`). Tài liệu thiết kế: [`docs/`](docs/README.md). Dự án mẫu chạy trên CI:
-> [`examples/demo`](examples/demo/).
+> (sửa lỗi cắt tag `v1.0.x`). Tài liệu thiết kế: [`docs/`](docs/README.md). Dự án mẫu để demo:
+> [`examples/project1`](examples/project1/).
 
 ## Quy trình
 
@@ -62,8 +62,7 @@ dẫn của repo mâu thuẫn với kit → bạn duyệt → commit.
 | [`prompts/`](prompts/README.md) | Prompt TAF chạy ở máy: sinh TC, sinh script, triage |
 | [`docs/`](docs/README.md) | Tài liệu thiết kế |
 | [`test/`](test/) | Unit test (`npm test`) |
-| [`examples/demo/`](examples/demo/) | Dự án mẫu đã nhúng kit, chạy đủ luồng TAF trên CI |
-| [`examples/demo-plain/`](examples/demo-plain/) | Cùng app, chưa nhúng kit — để thực hành ([docs/12](docs/12-user-guide.md)) |
+| [`examples/project1/`](examples/project1/) | Dự án mẫu BE Go + FE Next.js (đăng nhập JWT), chưa nhúng kit — để demo / thực hành ([docs/12](docs/12-user-guide.md)) |
 
 ## Nguyên tắc
 

@@ -14,7 +14,7 @@ import { buildContext, contextText, doctor, nextCode } from "../cli/src/context.
 import { initProject } from "../cli/src/init.mjs";
 
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEMO = path.join(KIT, "examples/demo");
+const DEMO = path.join(KIT, "test/fixtures/demo"); // dữ liệu cho test: cấu hình, spec, TC, vỏ lệnh của một dự án đã nhúng kit
 
 function tmp(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-"));

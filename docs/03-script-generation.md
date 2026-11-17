@@ -8,7 +8,7 @@
 | `plan-gen`: chọn feature cần sinh. `check-script`: script khớp TC. `check-paths`: chỉ ghi chỗ được phép. `rehash` | Page object, fixture, Playwright config, `globalSetup` |
 | Lệnh `/e2e-script` (ở máy): chạy Claude, kiểm tra, chạy thử; gate trên CI chặn khi script thiếu / lệch TC | Lệnh lint (`scripts.lint`), cách bật app ở máy (`stack.env`) |
 
-Ví dụ đầy đủ phần của dự án: [`examples/demo/e2e/`](../examples/demo/e2e/) và [`README.md`](../examples/demo/e2e/README.md) của nó (cấu trúc thư mục: [01 §3.1](01-architecture.md)).
+Ví dụ phần của dự án (khung test: config, persona, fixture, hướng dẫn viết test): [`examples/project1/e2e/`](../examples/project1/e2e/) và [`README.md`](../examples/project1/e2e/README.md) của nó (cấu trúc thư mục: [01 §3.1](01-architecture.md)).
 
 ## 2. Khi nào sinh
 

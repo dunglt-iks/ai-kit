@@ -2,7 +2,7 @@
 
 > Tài liệu tham chiếu cho `/spec`, `/prototype` và người viết FSD. Không phải tài liệu yêu cầu, không có mã,
 > không có Change Log. Quy tắc tổng thể: `.ai-kit/RULES.md` §2. Ví dụ dùng module giả `DM`
-> (`.ai-kit/examples/demo/docs/features/addon/DM-demo/`). Dự án có thể ghi đè khuôn này qua
+> (đơn hàng), ví dụ hoàn chỉnh ở `.ai-kit/docs/13-tai-lieu-spec.md` §6. Dự án có thể ghi đè khuôn này qua
 > `spec.templates.fsd`. Tên mục viết theo `language` của dự án.
 
 ## 0. Đầu file FSD

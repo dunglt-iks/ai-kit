@@ -3,7 +3,7 @@
 Tài liệu cho BA, PO, dev mới vào: cách kit tổ chức tài liệu yêu cầu, vì sao, và một ví dụ hoàn chỉnh. Quy tắc mà AI
 phải theo nằm ở [`RULES.md`](../RULES.md) §2; khuôn chi tiết ở [`templates/fsd.md`](../templates/fsd.md),
 [`templates/prd.md`](../templates/prd.md). Đường dẫn, mẫu mã, chữ trạng thái dưới đây là mặc định — dự án đổi trong
-`ai-kit.yml` ([11](11-cau-hinh.md)). Ví dụ dùng module giả `DM` (đơn hàng) như [`examples/demo`](../examples/demo/).
+`ai-kit.yml` ([11](11-cau-hinh.md)). Ví dụ dùng module giả `DM` (đơn hàng).
 
 ## 1. Vì sao phải chặt như vậy
 
@@ -238,8 +238,8 @@ Từ ví dụ này, `kit spec DM-F03` sẽ báo phải phủ: `DM-F03-US01`, `DM
 | Sửa tay ô Spec thành "Đã duyệt" | không biết ai duyệt | `kit approve` |
 | Mô tả quy tắc nghiệp vụ trong bảng thành phần | hai nơi lệch nhau | dẫn mã BR/luồng |
 
-> `examples/demo` viết trước khi có khuôn này nên FSD của nó còn wireframe Unicode và chưa có Change Log — dùng để
-> chạy TAF, không phải mẫu định dạng. Mẫu định dạng là §6 ở trên và `templates/`.
+> Mẫu định dạng là §6 ở trên và `templates/`. Repo đã có tài liệu theo kiểu khác (ticket, SRS — vd
+> `examples/project1/docs/`) thì `/kit-adopt` chỉ ra chỗ khác và đề xuất cách chuyển; tài liệu cũ không tự bị sửa.
 
 ## 9. Kit hỗ trợ gì
 
