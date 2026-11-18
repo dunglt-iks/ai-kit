@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { planBugs } from "../cli/src/bugs.mjs";
-import { loadProject } from "../cli/src/config.mjs";
+import { planBugs } from "../src/bugs.mjs";
+import { loadProject } from "../src/config.mjs";
 import {
   applyTriage,
   buildReport,
@@ -14,13 +14,13 @@ import {
   flattenResults,
   reportMarkdown,
   reportText,
-} from "../cli/src/report.mjs";
-import { mergeResults } from "../cli/src/run.mjs";
+} from "../src/report.mjs";
+import { mergeResults } from "../src/run.mjs";
 
 const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "fixtures",
-  "proj",
+  "repo-v1",
 );
 
 async function project() {
@@ -122,6 +122,7 @@ test("buildReport: theo feature — phủ spec, TC có test, script và test kh�
     tests: 4,
     passed: 2,
     failed: 1,
+    setup: 0,
     flaky: 1,
     skipped: 0,
     known: 0,

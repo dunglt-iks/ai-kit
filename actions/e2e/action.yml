@@ -1,24 +1,34 @@
 name: ai-kit e2e
 description: >-
-  Điểm cắm của ai-kit vào CI của dự án. Gọi sau bước dựng app của dự án (nếu chạy test). Lấy mã feature của PR → gate
-  (test case + script) → chạy run.command vào app → báo cáo (comment PR, nhãn chặn, đóng issue đã hết). Không gọi AI,
-  không ghi bug mới — phân loại + ghi bug làm ở máy bằng /e2e-triage.
+  Chạy e2e / hồi quy vào app dự án đã dựng (sau deploy dev / staging, hằng đêm). Chờ app trả lời → chạy run.command →
+  báo cáo theo feature / TC (step summary, artifact), issue theo dõi môi trường "E2E <env> đang đỏ" (mở / cập nhật /
+  đóng), đóng bug đã hết. Không gọi AI, không ghi bug mới — phân loại + ghi bug làm ở máy bằng /e2e-triage <run-id>.
+  Kiểm tuân thủ của PR (không chạy test) là action riêng: actions/gate.
 inputs:
   scope:
-    description: 'none (chỉ gate) | changed (script các feature của PR) | all | danh sách mã/tên script cách nhau bằng dấu cách'
-    default: changed
+    description: 'all (mọi test — hồi quy) | changed (script các feature của PR, cần sự kiện PR) | danh sách mã/tên script cách nhau bằng dấu cách'
+    default: all
   base-url:
     description: Địa chỉ app dự án đã dựng (→ biến run.baseUrlEnv cho lệnh test)
     default: ''
   env:
-    description: Nhãn môi trường trong báo cáo / issue (pr, dev, staging…)
-    default: pr
+    description: Tên môi trường (dev, staging…) — ghi vào báo cáo, đặt tên issue theo dõi
+    default: dev
+  wait-timeout:
+    description: Số giây chờ app trả lời (mã HTTP < 500) trước khi chạy. Hết giờ → "môi trường không lên", không chạy test
+    default: '300'
+  wait-url:
+    description: Địa chỉ để chờ (mặc định base-url; chỉ đặt khi app có sẵn endpoint health)
+    default: ''
+  track:
+    description: 'auto (bật trừ sự kiện PR và chạy chia shard) | true | false — issue theo dõi "E2E <env> đang đỏ"'
+    default: auto
   grep:
     description: Chỉ chạy test có tên khớp mẫu
     default: ''
   gate:
-    description: 'auto (gate trừ scope all) | true | false'
-    default: auto
+    description: 'false | true — kiểm TC + script trước khi chạy (tuân thủ của PR đã có actions/gate)'
+    default: 'false'
   close-fixed:
     description: '"true" = đóng issue có test đã pass lại (hồi quy trên nhánh chính)'
     default: 'false'
@@ -29,7 +39,7 @@ inputs:
     description: Thư mục dự án (nơi có ai-kit.yml), tính từ gốc repo
     default: .
   publish:
-    description: '"true" = comment PR (gate + kết quả), nhãn chặn, step summary. "false" cho job chạy thử / kiểm nội bộ không muốn đè comment của PR'
+    description: '"true" = step summary, comment PR (khi chạy trong sự kiện PR), issue theo dõi. "false" cho job chạy thử / kiểm nội bộ'
     default: 'true'
   shard:
     description: 'Chạy phần i trong n (vd 1/4) — dùng với matrix; gộp ở job sau bằng kit report --results … --strict'
@@ -50,6 +60,9 @@ outputs:
   failed:
     description: Số test fail
     value: ${{ steps.e2e.outputs.failed }}
+  status:
+    description: 'passed | failed | gate-failed | env-down | skipped'
+    value: ${{ steps.e2e.outputs.status }}
 runs:
   using: composite
   steps:
@@ -89,10 +102,17 @@ runs:
         GATE: ${{ inputs.gate }}
         SHARD: ${{ inputs.shard }}
         PUBLISH: ${{ inputs.publish }}
+        WAIT: ${{ inputs.wait-timeout }}
+        WAIT_URL: ${{ inputs.wait-url }}
+        TRACK: ${{ inputs.track }}
       run: |
         read -r -a scope <<< "$SCOPE"
-        args=(e2e "${scope[@]}" --env "$KIT_ENV" --fail-on "$FAIL_ON")
+        args=(e2e "${scope[@]}" --env "$KIT_ENV" --fail-on "$FAIL_ON" --wait "${WAIT:-0}")
+        [ -n "$WAIT_URL" ] && args+=(--wait-url "$WAIT_URL")
         [ "$PUBLISH" = "true" ] && args+=(--publish github)
+        if [ "$TRACK" = "auto" ]; then
+          [[ "$GITHUB_EVENT_NAME" != pull_request* ]] && [ -z "$SHARD" ] && [ "$PUBLISH" = "true" ] && args+=(--track)
+        elif [ "$TRACK" = "true" ]; then args+=(--track); fi
         [ -n "$BASE_URL" ] && args+=(--base-url "$BASE_URL")
         [ -n "$GREP" ] && args+=(--grep "$GREP")
         [ "$GATE" = "true" ] && args+=(--gate)

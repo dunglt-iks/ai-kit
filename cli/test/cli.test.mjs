@@ -5,15 +5,15 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { extractFeatures, extractTraces } from "../cli/src/codes.mjs";
-import { loadProject } from "../cli/src/config.mjs";
+import { extractFeatures, extractTraces } from "../src/codes.mjs";
+import { loadProject } from "../src/config.mjs";
 import {
   detect,
   featuresFromStatusDiff,
   globToRegex,
-} from "../cli/src/detect.mjs";
-import { gateFeature } from "../cli/src/gate.mjs";
-import { approvalHash, lintTestcase } from "../cli/src/testcase.mjs";
+} from "../src/detect.mjs";
+import { gateFeature } from "../src/gate.mjs";
+import { approvalHash, lintTestcase } from "../src/testcase.mjs";
 
 /** Mô phỏng người duyệt: ghi approvedHash khớp nội dung (như kit approve --testcase). */
 function approved(text) {
@@ -25,7 +25,7 @@ function approved(text) {
 const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "fixtures",
-  "proj",
+  "repo-v1",
 );
 
 /** Bản sao fixture vào thư mục tạm, TC được điền specHash thật. */
@@ -154,7 +154,7 @@ test("lint-tc: bắt mã sai, trùng, thiếu truy vết, thiếu cột kết qu
 
 test("gate: TC đủ điều kiện nhưng chưa có script → chặn; có script khớp TC → qua", async () => {
   const { cfg } = await project();
-  const { sourceHeader, scriptPath } = await import("../cli/src/scripts.mjs");
+  const { sourceHeader, scriptPath } = await import("../src/scripts.mjs");
   let r = gateFeature(cfg, "XX-F01");
   assert.equal(r.ok, false);
   assert.match(r.problems.join("\n"), /không có script — chạy `\/e2e-script XX-F01` ở máy/);

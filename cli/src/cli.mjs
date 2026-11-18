@@ -9,7 +9,7 @@ import { fileBugs } from "./bugs.mjs";
 import { initProject } from "./init.mjs";
 import { buildContext, contextText, doctor, nextCode } from "./context.mjs";
 import { approve, readyFeature } from "./approve.mjs";
-import { e2e, publishReport } from "./e2e.mjs";
+import { e2e, gatePr, publishReport } from "./e2e.mjs";
 import { appendHistory, applyQuarantine, flakyStats, readHistory } from "./history.mjs";
 import { mergeResults } from "./run.mjs";
 import {
@@ -58,13 +58,18 @@ Nhúng kit, quy trình:
   next-code <mã cha>   Mã kế tiếp, không tái dùng số: --type F (mặc định, cha = module, vd DM)
        [--type F|US|SCR|BR|small]   US/SCR: cha = feature (DM-F01); BR: cha = module; small: không cần cha
 
-E2E (điểm cắm CI và chạy ở máy — app do dự án dựng trước):
-  e2e <phạm vi>        none: chỉ gate các feature của PR · changed: chạy script các feature của PR · all: mọi
-                       script · <mã|tên script>…: chỉ các script này. Gate (TC + script) → chạy run.command → báo cáo
+Điểm cắm CI (và chạy ở máy):
+  gate --pr            Kiểm tuân thủ của PR, không chạy test, không cần app: mã feature của PR (PR sửa code mà không
+                       khai mã → đỏ), spec / test case đã duyệt, phủ đủ, script khớp TC  [--publish github] [--base] [--title]
+  e2e <phạm vi>        Chạy e2e vào app dự án đã dựng. changed: script các feature của nhánh / PR (+ smoke, P1) · all:
+                       mọi test · <mã|tên script>…: chỉ các script này. (Gate) → chờ app → chạy run.command → báo cáo
        [--base-url <url>]      địa chỉ app → biến run.baseUrlEnv
        [--env <tên>]           nhãn môi trường trong báo cáo / issue (mặc định local)
        [--grep <mẫu>]          chỉ chạy test có tên khớp
        [--gate | --no-gate]    mặc định: gate trừ phạm vi all
+       [--wait <giây>]         chờ app trả lời (mã HTTP < 500) tối đa ngần này; mặc định 0 = thử một lần. --no-wait: bỏ
+       [--wait-url <url>]      địa chỉ để chờ (mặc định --base-url)
+       [--track]               issue theo dõi "E2E <env> đang đỏ": mở / cập nhật / đóng theo kết quả (cần --env)
        [--close-fixed]         đóng issue có test đã pass lại
        [--publish github]      comment PR, nhãn chặn, step summary
        [--merge]               gộp vào kết quả cũ (chạy lại một phần)
@@ -78,11 +83,11 @@ TAF (test case, script, báo cáo, bug):
        --hash          Chỉ in specHash
   lint-tc [file…]      Kiểm cú pháp TC (mặc định: mọi file trong testcases.dir)
   gate <mã…>           Kiểm TC: có, đã duyệt, phủ đủ, không lỗi thời; script có và khớp TC (gate.requireScript)
-       [--md <file>]   Ghi báo cáo markdown
+       [--md <file>]   Ghi báo cáo markdown  [--publish github]: comment PR + nhãn chặn
   plan-gen <mã…>       Feature nào cần sinh (lại) script: TC đã duyệt, script chưa có hoặc lệch hash  [--json]
   check-script [mã…]   Script khớp TC: @taf-source, đủ test cho mỗi TC, không mẫu cấm (mặc định: mọi script)
   check-paths          File đã đổi (so với --base, mặc định HEAD) phải nằm trong scripts.allowedPaths
-       [--base <ref>]
+       [--base <ref>]  [--triage]: fixture (run.setupPaths) bị đổi cũng là lỗi — /e2e-triage hỏi người trước
   lint-script          Chạy lệnh scripts.lint của dự án
   rehash <mã>          Ghi lại hash @taf-source sau khi sửa tay script hoặc TC
   report [mã…]         Đọc JSON report (run.report) → kết quả theo feature (kèm triage.json nếu có), ghi
@@ -115,6 +120,11 @@ const { values: opt, positionals } = parseArgs({
     "no-gate": { type: "boolean" },
     publish: { type: "string" },
     "fail-on": { type: "string" },
+    pr: { type: "boolean" },
+    wait: { type: "string" },
+    "no-wait": { type: "boolean" },
+    "wait-url": { type: "string" },
+    track: { type: "boolean" },
     shard: { type: "string" },
     merge: { type: "boolean" },
     results: { type: "string", multiple: true },
@@ -122,6 +132,7 @@ const { values: opt, positionals } = parseArgs({
     last: { type: "string" },
     "file-bugs": { type: "boolean" },
     "close-fixed": { type: "boolean" },
+    triage: { type: "boolean" },
     "dry-run": { type: "boolean" },
     force: { type: "boolean" },
     migrate: { type: "boolean" },
@@ -180,7 +191,8 @@ async function main() {
     console.log(`
 Tiếp theo: mở Claude Code, chạy /kit-adopt — AI đề xuất giá trị ai-kit.yml theo repo và chỉ chỗ hướng dẫn của repo
 mâu thuẫn với kit; duyệt rồi commit ai-kit.yml, .claude/, CLAUDE.md/AGENTS.md, .gitignore.
-CI (tuỳ repo): thêm bước "uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" — xem .ai-kit/docs/04-ci-workflow.md.`);
+CI (tuỳ repo): PR → "uses: dunglt-iks/ai-kit/actions/gate@<kitRef>"; sau deploy / hằng đêm →
+"uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" — workflow mẫu: .ai-kit/docs/04-ci-workflow.md.`);
     return errors ? 1 : 0;
   }
 
@@ -302,7 +314,13 @@ CI (tuỳ repo): thêm bước "uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" �
 
   if (cmd === "gate") {
     const codes = args.map((a) => a.toUpperCase());
-    if (!codes.length) throw new TafError("gate cần ít nhất một mã feature");
+    if (opt.publish && opt.publish !== "github") throw new TafError("--publish chỉ hỗ trợ github");
+    if (opt.pr || opt.publish) {
+      const r = await gatePr(cfg, { codes, github: opt.publish === "github", base: opt.base, title: opt.title });
+      if (opt.md) fs.writeFileSync(opt.md, gateMarkdown(r.gate, cfg.gate.blockedLabel));
+      return r.code;
+    }
+    if (!codes.length) throw new TafError("gate cần mã feature, hoặc --pr để lấy mã từ PR / nhánh hiện tại");
     const report = gate(cfg, codes);
     console.log(gateText(report));
     if (opt.md) fs.writeFileSync(opt.md, gateMarkdown(report, cfg.gate.blockedLabel));
@@ -324,6 +342,9 @@ CI (tuỳ repo): thêm bước "uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" �
       shard: opt.shard,
       base: opt.base,
       title: opt.title,
+      wait: opt["no-wait"] ? false : opt.wait != null ? Number(opt.wait) : undefined,
+      waitUrl: opt["wait-url"],
+      track: opt.track,
     });
     return r.code;
   }
@@ -356,15 +377,19 @@ CI (tuỳ repo): thêm bước "uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" �
   }
 
   if (cmd === "check-paths") {
-    const r = checkPaths(cfg, opt.base);
+    const r = checkPaths(cfg, opt.base, { triage: opt.triage });
     for (const f of r.files)
-      console.log(`${r.outside.includes(f) ? "✘" : "✓"} ${f}`);
-    if (r.outside.length) {
+      console.log(`${r.outside.includes(f) || r.setup.includes(f) ? "✘" : "✓"} ${f}`);
+    if (r.outside.length)
       console.error(
         `✘ ${r.outside.length} file nằm ngoài scripts.allowedPaths — không được commit`,
       );
-      return 1;
-    }
+    if (r.setup.length)
+      console.error(
+        `✘ ${r.setup.length} file fixture (run.setupPaths) bị sửa khi triage — dừng, hỏi người dùng: nêu lý do, chứng minh ` +
+          `không che lỗi app. Người đồng ý thì kiểm lại bằng kit check-paths (không --triage)`,
+      );
+    if (r.outside.length || r.setup.length) return 1;
     console.log(`${r.files.length} file, đều trong scripts.allowedPaths`);
     return 0;
   }

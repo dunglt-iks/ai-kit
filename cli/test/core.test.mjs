@@ -6,11 +6,11 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadProject } from "../cli/src/config.mjs";
-import { gateFeature } from "../cli/src/gate.mjs";
-import { e2e } from "../cli/src/e2e.mjs";
-import { fillFiles, runTests, scriptFiles } from "../cli/src/run.mjs";
-import { approvalHash, lintTestcase } from "../cli/src/testcase.mjs";
+import { loadProject } from "../src/config.mjs";
+import { gateFeature } from "../src/gate.mjs";
+import { e2e, gatePr } from "../src/e2e.mjs";
+import { fillFiles, runTests, scriptFiles } from "../src/run.mjs";
+import { approvalHash, lintTestcase } from "../src/testcase.mjs";
 /** Mô phỏng người duyệt: ghi approvedHash khớp nội dung (như kit approve --testcase). */
 function approved(text) {
   const t = text.replace(/^approvedHash:.*\n/m, "");
@@ -149,7 +149,7 @@ test("runTests: lệnh của dự án chạy với {files}, {grep}, địa chỉ
   assert.match((await runTests(cfg, { files: [], log: () => {} })).skipped, /không có script/);
 });
 
-test("kit e2e: danh sách → gate + chạy + báo cáo; all → không gate; none → chỉ gate feature của PR; fail-on", async () => {
+test("kit e2e: danh sách → gate + chạy + báo cáo; all → không gate; kit gate --pr → chỉ gate feature của PR; fail-on", async () => {
   const { execFileSync } = await import("node:child_process");
   const dir = shopProject();
   const g = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" }).trim();
@@ -178,10 +178,14 @@ test("kit e2e: danh sách → gate + chạy + báo cáo; all → không gate; no
   assert.equal(r.gate, null);
   assert.equal(r.code, 0);
 
-  r = await e2e(cfg, { scope: ["none"], base: "main", log });
+  r = await gatePr(cfg, { base: "main", log });
   assert.deepEqual(r.features, ["SHOP-12"]);
-  assert.equal(r.run, null);
   assert.equal(r.gate.ok, false);
+  assert.equal(r.code, 1);
+  // phạm vi none đã bỏ — báo dùng kit gate --pr
+  await assert.rejects(e2e(cfg, { scope: ["none"], log }), /kit gate --pr/);
+  // --track cần tên môi trường
+  await assert.rejects(e2e(cfg, { scope: ["all"], track: true, log }), /--track cần --env/);
 
   await assert.rejects(e2e(cfg, { scope: ["all", "SHOP-12"], log }), /không đi kèm mã khác/);
 });
@@ -197,7 +201,7 @@ test("fillFiles: quote đường dẫn, không có {files} thì nối cuối", (
 });
 
 test("plan-gen / check-script / rehash: script theo TC đã duyệt, phát hiện lệch và lỗi", async () => {
-  const { planGen, checkScript, rehash } = await import("../cli/src/scripts.mjs");
+  const { planGen, checkScript, rehash } = await import("../src/scripts.mjs");
   const dir = shopProject({
     "ai-kit.yml": `version: 2
 spec: { adapter: ./taf/adapter.mjs }
@@ -252,7 +256,7 @@ test("TC-SHOP-12-001 Checkout", async ({ page }) => { await expect(page).toHaveT
 });
 
 test("check-paths: file ngoài allowedPaths và ngoài thư mục dự án đều bị bắt", async () => {
-  const { checkPaths } = await import("../cli/src/scripts.mjs");
+  const { checkPaths } = await import("../src/scripts.mjs");
   const { execFileSync } = await import("node:child_process");
   const top = fs.mkdtempSync(path.join(os.tmpdir(), "taf-paths-"));
   const proj = path.join(top, "app");
@@ -282,8 +286,30 @@ scripts: { allowedPaths: ['e2e/gen/**', 'tc/**'] }
   assert.deepEqual(checkPaths(cfg).outside, ["../README.md", "src/app.js"]);
 });
 
+test("check-paths --triage: fixture (run.setupPaths) bị sửa là lỗi; không --triage thì được", async () => {
+  const { checkPaths } = await import("../src/scripts.mjs");
+  const { execFileSync } = await import("node:child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "taf-triage-"));
+  fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 2\n");
+  const g = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" });
+  g("init", "-q");
+  g("add", ".");
+  g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init");
+  const cfg = await loadProject({ root: dir });
+  for (const f of ["e2e/scripts/XX/XX-F01.spec.mjs", "e2e/support/fixtures.ts"]) {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), "x");
+  }
+  const plain = checkPaths(cfg);
+  assert.deepEqual(plain.outside, []);
+  assert.deepEqual(plain.setup, []);
+  const t = checkPaths(cfg, undefined, { triage: true });
+  assert.deepEqual(t.outside, []);
+  assert.deepEqual(t.setup, ["e2e/support/fixtures.ts"]);
+});
+
 test("cấu hình: ai-kit.yml trước, vẫn đọc e2e/taf.config.yml và taf.config.yml (1.x); mặc định đặt mọi thứ dưới e2e/", async () => {
-  const { loadConfig } = await import("../cli/src/config.mjs");
+  const { loadConfig } = await import("../src/config.mjs");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "taf-cfg-"));
   fs.writeFileSync(path.join(dir, "taf.config.yml"), "version: 1\ntestcases: { dir: old }\n");
   assert.equal(loadConfig({ root: dir }).testcases.dir, "old");
@@ -295,7 +321,7 @@ test("cấu hình: ai-kit.yml trước, vẫn đọc e2e/taf.config.yml và taf.
   assert.equal(cfg.testcases.dir, "e2e/testcases");
   assert.equal(cfg.scripts.dir, "e2e/scripts");
   assert.equal(cfg.scripts.ext, ".spec.mjs");
-  assert.deepEqual(cfg.scripts.allowedPaths, ["e2e/scripts/**", "e2e/pages/**"]);
+  assert.deepEqual(cfg.scripts.allowedPaths, ["e2e/scripts/**", "e2e/pages/**", "e2e/support/**"]);
   assert.equal(cfg.run.report, "e2e/test-results/raw/results.json");
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), "taf-cfg-"));
   assert.throws(() => loadConfig({ root: empty }), /ai-kit\.yml/);
@@ -304,8 +330,8 @@ test("cấu hình: ai-kit.yml trước, vẫn đọc e2e/taf.config.yml và taf.
 });
 
 test("migrateScripts: script phẳng → <dir>/<module>/, sửa import tương đối; writeHumanReport giữ keepReports file", async () => {
-  const { migrateScripts, flatScripts, listScripts } = await import("../cli/src/scripts.mjs");
-  const { writeHumanReport } = await import("../cli/src/report.mjs");
+  const { migrateScripts, flatScripts, listScripts } = await import("../src/scripts.mjs");
+  const { writeHumanReport } = await import("../src/report.mjs");
   const dir = shopProject({
     "e2e/gen/SHOP-12.spec.js": `import { test } from "../support/fx.js";\nimport { P } from "./pages/p.js";\n`,
   });
@@ -332,7 +358,7 @@ test("migrateScripts: script phẳng → <dir>/<module>/, sửa import tương �
 });
 
 test("R1 — TC đã duyệt bị sửa: lint / gate / plan-gen báo, check-paths chặn; rehash không lách được; duyệt không làm script lệch", async () => {
-  const { planGen, rehash, checkPaths } = await import("../cli/src/scripts.mjs");
+  const { planGen, rehash, checkPaths } = await import("../src/scripts.mjs");
   const { execFileSync } = await import("node:child_process");
   const dir = shopProject();
   const g = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" });
@@ -357,7 +383,7 @@ test("R1 — TC đã duyệt bị sửa: lint / gate / plan-gen báo, check-path
 });
 
 test("R2 — test bị comment không được tính; TC đã duyệt không có test thực sự chạy → kit e2e đỏ (trừ khi --grep)", async () => {
-  const { checkScript, rehash, stripComments } = await import("../cli/src/scripts.mjs");
+  const { checkScript, rehash, stripComments } = await import("../src/scripts.mjs");
   assert.equal(stripComments('a("//x"); // c\n/* t(\n1) */b').length, 'a("//x"); // c\n/* t(\n1) */b'.length);
   assert.equal(stripComments('a("//x"); // c\n/* t(\n1) */b').replace(/ +/g, " "), 'a("//x"); \n \n b');
   const dir = shopProject({
@@ -377,7 +403,7 @@ test("R2 — test bị comment không được tính; TC đã duyệt không có
 });
 
 test("🟡3 — đăng lên GitHub lỗi (token chỉ đọc / mạng) chỉ cảnh báo, test vẫn chạy; lệnh test không nhận GITHUB_TOKEN", async () => {
-  const { childEnv } = await import("../cli/src/run.mjs");
+  const { childEnv } = await import("../src/run.mjs");
   const dir = shopProject();
   const cfg = await loadProject({ root: dir });
   const ev = path.join(dir, "event.json");
@@ -401,7 +427,7 @@ test("🟡3 — đăng lên GitHub lỗi (token chỉ đọc / mạng) chỉ c�
 });
 
 test("đợt 2 — feature chỉ kiểm ngoài e2e không bị chặn; --merge giữ kết quả cũ khi chạy lại lỗi; lỗi git báo rõ cách sửa", async () => {
-  const { planGen } = await import("../cli/src/scripts.mjs");
+  const { planGen } = await import("../src/scripts.mjs");
   const onlyOut = approved(TC.replace(/## TC-SHOP-12-001[\s\S]*?(?=## Out of e2e scope)/, "").replace(
     "| SHOP-12.2 | API only | unit test |",
     "| SHOP-12.1 | API only | unit test |\n| SHOP-12.2 | API only | unit test |\n| SHOP-12/S1 | no UI | manual |",
@@ -426,11 +452,12 @@ test("đợt 2 — feature chỉ kiểm ngoài e2e không bị chặn; --merge g
   assert.match(fs.readFileSync(report, "utf8"), /"old"/);
 
   // không phải repo git / thiếu nhánh gốc → TafError có hướng dẫn, không phải stack trace
-  await assert.rejects(e2e(cfg, { scope: ["none"], log: () => {} }), /fetch-depth: 0/);
+  await assert.rejects(e2e(cfg, { scope: ["changed"], log: () => {} }), /fetch-depth: 0/);
+  await assert.rejects(gatePr(cfg, { log: () => {} }), /fetch-depth: 0/);
 });
 
 test("check-script — assertion: không expect → lỗi; chỉ assertion yếu / toContainText → cảnh báo; test.fail không link issue → lỗi; số expect giảm so với HEAD → cảnh báo", async () => {
-  const { checkScript, rehash } = await import("../cli/src/scripts.mjs");
+  const { checkScript, rehash } = await import("../src/scripts.mjs");
   const { execFileSync } = await import("node:child_process");
   const strong = 'test("TC-SHOP-12-001 Checkout", async ({ page }) => {\n  await expect(page.getByTestId("total")).toHaveText("45.000");\n  await expect(page.getByTestId("vat")).toHaveText("4.500");\n});\n';
   const dir = shopProject({ "e2e/gen/SHOP/SHOP-12.spec.js": strong });
@@ -482,7 +509,7 @@ test("kit e2e changed: chạy script của feature trong PR + bộ smoke (run.sm
 });
 
 test("TC tầng (e2e | api): lint nhận api, từ chối unit (đưa ra ngoài phạm vi); check-script cảnh báo TC api mở trình duyệt", async () => {
-  const { checkScript, rehash } = await import("../cli/src/scripts.mjs");
+  const { checkScript, rehash } = await import("../src/scripts.mjs");
   const tcApi = approved(TC.replace("- Trace: SHOP-12.1, SHOP-12/S1", "- Trace: SHOP-12.1, SHOP-12/S1\n- Layer: api"));
   const dir = shopProject({
     "tc/SHOP/SHOP-12.md": tcApi,
@@ -500,7 +527,7 @@ test("TC tầng (e2e | api): lint nhận api, từ chối unit (đưa ra ngoài 
 });
 
 test("đợt B — P1 của feature khác (priorityTests), --shard truyền cho lệnh test, kit report gộp nhiều --results + --strict", async () => {
-  const { priorityTests } = await import("../cli/src/e2e.mjs");
+  const { priorityTests } = await import("../src/e2e.mjs");
   const { execFileSync } = await import("node:child_process");
   const dir = shopProject({ "tc/SHOP/SHOP-12.md": approved(TC.replace("- Trace: SHOP-12.1, SHOP-12/S1", "- Trace: SHOP-12.1, SHOP-12/S1\n- Priority: P1")) });
   const cfg = await loadProject({ root: dir });
@@ -516,7 +543,7 @@ test("đợt B — P1 của feature khác (priorityTests), --shard truyền cho 
   const res = (title, status) => ({ stats: {}, suites: [{ title: "s", specs: [{ title, file: "s.js", line: 1, tests: [{ status, annotations: [], results: [{ status: status === "expected" ? "passed" : "failed" }] }] }] }] });
   fs.writeFileSync(path.join(dir, "a.json"), JSON.stringify(res("TC-SHOP-12-001 Checkout", "expected")));
   fs.writeFileSync(path.join(dir, "b.json"), JSON.stringify(res("smoke x", "expected")));
-  const kit = (...a) => execFileSync("node", [path.join(path.dirname(fileURLToPath(import.meta.url)), "../cli/bin/kit.mjs"), ...a], { cwd: dir, encoding: "utf8" });
+  const kit = (...a) => execFileSync("node", [path.join(path.dirname(fileURLToPath(import.meta.url)), "../bin/kit.mjs"), ...a], { cwd: dir, encoding: "utf8" });
   const out = kit("report", "--results", "a.json", "--results", "b.json", "--strict");
   assert.match(out, /2\/2 pass/);
   assert.ok(fs.existsSync(path.join(dir, "out/results.json"))); // bản gộp ghi vào run.report
@@ -525,9 +552,9 @@ test("đợt B — P1 của feature khác (priorityTests), --shard truyền cho 
 });
 
 test("lịch sử + kit flaky + quarantine: test đang cách ly fail không làm đỏ, không thành bug; hết hạn / thiếu issue thì báo", async () => {
-  const { flakyStats, readHistory } = await import("../cli/src/history.mjs");
-  const { planBugs } = await import("../cli/src/bugs.mjs");
-  const { reportMarkdown } = await import("../cli/src/report.mjs");
+  const { flakyStats, readHistory } = await import("../src/history.mjs");
+  const { planBugs } = await import("../src/bugs.mjs");
+  const { reportMarkdown } = await import("../src/report.mjs");
   const dir = shopProject();
   const res = (status) => ({ stats: {}, suites: [{ title: "s", specs: [{ title: "TC-SHOP-12-001 Checkout", file: "s.js", line: 1, tests: [{ status, annotations: [], results: [{ status: status === "expected" ? "passed" : "failed", error: { message: "Error: x" } }] }] }] }] });
   fs.writeFileSync(path.join(dir, "pass.json"), JSON.stringify(res("expected")));
@@ -563,4 +590,24 @@ test("lịch sử + kit flaky + quarantine: test đang cách ly fail không làm
   r = await run("pass");
   assert.equal(r.code, 1);
   assert.match(r.report.quarantineProblems[0], /thiếu "issue"/);
+});
+
+test("check-script: script gọi API ghi trực tiếp → lỗi (dựng dữ liệu qua fixture); TC tầng api thì được", async () => {
+  const { checkScript, rehash } = await import("../src/scripts.mjs");
+  const dir = shopProject({
+    "e2e/gen/SHOP/SHOP-12.spec.js": `import { test, expect } from "../../fx.js";
+test("TC-SHOP-12-001 Checkout", async ({ page, request }) => {
+  await request.post("/api/orders", { data: {} });
+  await expect(page).toHaveTitle("x");
+});
+`,
+  });
+  const cfg = await loadProject({ root: dir });
+  rehash(cfg, "SHOP-12");
+  assert.match(checkScript(cfg, "SHOP-12").errors.join("\n"), /TC-SHOP-12-001 gọi API ghi trực tiếp \(request.post\) — dựng \/ dọn dữ liệu qua fixture/);
+  // TC tầng api: kiểm chính API đó → được gọi trực tiếp
+  const tc = path.join(dir, "tc/SHOP/SHOP-12.md");
+  fs.writeFileSync(tc, approved(fs.readFileSync(tc, "utf8").replace("- Trace: SHOP-12.1, SHOP-12/S1", "- Trace: SHOP-12.1, SHOP-12/S1\n- Layer: api")));
+  rehash(cfg, "SHOP-12");
+  assert.doesNotMatch(checkScript(cfg, "SHOP-12").errors.join("\n"), /gọi API ghi/);
 });

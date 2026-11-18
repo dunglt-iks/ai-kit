@@ -2,9 +2,9 @@
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Phiên bản | 2.0 |
+| Phiên bản | 2.1 |
 | Trạng thái | Phát hành v2.0.0 (bản 1.x: nhánh `release/1.x`) |
-| Cập nhật lần cuối | 2026-11-15 |
+| Cập nhật lần cuối | 2026-11-18 |
 | Áp dụng đầu tiên | `app-base` (ví dụ trong tài liệu) — chuyển sang 2.x ở PR riêng |
 
 > **Ví dụ trong tài liệu:** một số lấy từ `app-base` (mã spec `DL-F05`, `CORE-C10`…), là dự án áp dụng đầu tiên — chỉ là ví dụ. Dự án mẫu chạy được ngay trong repo này là [`examples/project1`](../examples/project1/) (BE Go + FE Next.js, chưa nhúng kit).
@@ -13,6 +13,7 @@
 
 | Phiên bản | Ngày | Mô tả thay đổi | Tác giả |
 |---|---|---|---|
+| 2.1 | 2026-11-18 | Phát hành cùng ai-kit 2.0.0 (chưa gắn tag). Hai điểm cắm CI: PR → `kit gate --pr` / `actions/gate` (tuân thủ, không chạy test); sau deploy / hằng đêm → `kit e2e` / `actions/e2e` (mặc định `all`, `env: dev`). Bỏ phạm vi `none`. `kit e2e` chờ app trả lời trước khi chạy (`--wait`, mã < 500, app không cần endpoint health), hết giờ → `env-down`, không chạy, không tính test fail; output `status`. Issue theo dõi môi trường (`--track`, `tracker.trackLabel`): mở / cập nhật / đóng. Lỗi dựng dữ liệu tách khỏi lỗi feature (`run.setupPaths`). `check-script` chặn script gọi API ghi trực tiếp (trừ TC tầng `api`); `e2e/support/**` vào `scripts.allowedPaths` mặc định (fixture mới, người duyệt). Workflow mẫu một file (04 §4), repo kit tự kiểm bằng `sample-e2e.yml` + unit test đối chiếu input. Nguyên tắc dựng dữ liệu: API công khai của app trước, API test sau (06). Sửa 03, 04, 05, 06, 07, 11; D12 viết lại, thêm D25–D26 `kit check-paths --triage`: triage không tự sửa fixture (03, 07). | BA Team |
 | 2.0 | 2026-11-15 | ai-kit 2.0.0. Lớp quy trình: `RULES.md`, `process/`, lệnh `/spec /prototype /testcase /e2e-script /e2e-triage /dev /ship /kit-adopt`, agent spec-reviewer (soát spec + đối chiếu prototype, `kit check-prototype`), tester, reviewer; khuôn PRD/FSD/kế hoạch/prototype; hai lớp quy định + khối cầu nối (10). Cấu hình `ai-kit.yml` v2 (`kitRef`, `run.command`), `kit init` chuyển từ `taf.config.yml` v1 (11). Nhúng hai bước: `kit init` (chạy lại được, tự kiểm) + `/kit-adopt`; vỏ lệnh tự clone kit. Duyệt bằng `kit approve` (spec, prototype, test case) + cổng `kit ready`; test case trước code; phát hiện mã trùng. CI là của dự án: điểm cắm `kit e2e` + action `actions/e2e` (04); CI không gọi AI, phân loại và ghi bug ở máy (`/e2e-triage`, 07); phạm vi TAF ba tầng (05). Cấu trúc `e2e/` theo module, báo cáo markdown cho người đọc (`test-results/reports/`), `kit init --migrate` (01 §3.1). Truy vết chặt: duyệt TC ghi `approvedHash`, TC đã duyệt bị sửa bị bắt (lint, gate, plan-gen, check-paths); test bị comment / skip không tính; issue gom theo fingerprint, `--close-fixed` theo đúng test đã fail; triage gắn fingerprint; mục "Test case cần xem lại" (02, 03, 07). BR dùng chung đổi → TC lỗi thời; feature chỉ kiểm ngoài e2e không bị chặn; action không chèn input vào script, không đưa `.auth/` lên artifact, không truyền token cho lệnh test (02, 04). Số chữ số của mã cấu hình được (`spec.codeDigits`: 2 hoặc 3); hết số thì `next-code` cấp thêm một chữ số, không còn cấp trùng (11, 13). Chất lượng e2e: `check-script` bắt test không có `expect`, `test.fail` không link issue, cảnh báo assertion yếu và số `expect` giảm; `changed` chạy kèm smoke (`run.smoke`); báo cáo nêu bước fail (`test.step`) và dữ liệu test dọn lỗi; demo dọn cả dữ liệu tạo qua giao diện (03, 04, 06, 07). Cột "Tầng" (e2e | api) trong TC; `changed` chạy thêm TC P1 của feature khác và feature kéo theo bởi `trigger.featureMap`; `--shard` + `kit report --results … --strict`; lịch sử kết quả, `kit flaky`, cách ly có hạn (`run.quarantine`); cảnh báo / chặn người viết tự duyệt TC (02, 04, 07, 11). Hướng dẫn sử dụng (12), tổ chức tài liệu spec (13), dự án mẫu `examples/project1` (BE Go + FE Next.js, chưa nhúng kit; CI của kit chỉ chạy unit test và setup.sh). Quyết định D1, D3, D4, D6, D8, D10–D14 viết lại; thêm D15–D24 | BA Team |
 | 1.3 | 2026-11-08 | v1.0.0: sinh script (03), chạy theo target, báo cáo theo feature, bug theo fingerprint (07), workflow mẫu + `taf init`, dự án mẫu `examples/demo` | BA Team |
 | 1.2 | 2026-11-08 | Ranh giới mới: TAF chỉ giữ cơ chế (D10 sửa, thêm D12–D14). Spec adapter nạp theo cấu hình, bộ nhãn TC `vi`/`en`, `run.targets` + `taf run`; bỏ thư viện `lib/`; 01, 04, 05, 06 viết lại | BA Team |
@@ -63,9 +64,9 @@ mã feature của PR → gate (TC + script) → chạy run.command vào app → 
 | D9 | Script dùng **page object và fixture của dự án**, theo hướng dẫn viết test của dự án (`scripts.guide`). Locator chỉ nằm trong page object. |
 | D10 | **TAF không lo app, môi trường, tài khoản, vai trò, persona, dữ liệu test.** CI của dự án dựng / tắt app; bộ khung test của dự án (`globalSetup`, fixture) lo dữ liệu nền, persona, dựng / dọn dữ liệu từng test — script AI sinh chỉ gọi fixture. Kit chọn test, chạy vào địa chỉ app, gom kết quả theo mã, gate, báo cáo, bug ([05 §1](05-environments.md)). |
 | D11 | **Claude không được sửa bất kỳ file code nào của ứng dụng** khi làm test case / script / triage, kể cả thêm `data-testid`. Chỉ ghi vào TC và thư mục test được phép, có cưỡng chế bằng kiểm tra diff ([03 §5](03-script-generation.md)). |
-| D12 | **Kit không sở hữu CI/CD.** Kit cung cấp một điểm cắm: lệnh `kit e2e` (phạm vi `none` / `changed` / `all` / mã, `--base-url`, `--env`…) và action `actions/e2e` bọc lệnh đó. Dự án gọi sau bước dựng app của mình; kit không chép, không sửa workflow, không deploy ([04](04-ci-workflow.md)). |
+| D12 | **Kit không sở hữu CI/CD.** Kit cung cấp hai điểm cắm: `kit gate --pr` / `actions/gate` cho PR (tuân thủ, không cần app) và `kit e2e` / `actions/e2e` chạy vào địa chỉ app dự án đã deploy (sau deploy, hằng đêm). Build, deploy là workflow của dự án; kit không chép, không sửa workflow, chỉ đưa workflow mẫu trong docs ([04](04-ci-workflow.md)). PR chỉ gate vì code của PR chưa có trên dev; bù bằng `kit e2e changed` ở máy (`/ship`). Required check là cài đặt của repo, kit không quản lý. |
 | D13 | Mọi thứ riêng của dự án đi qua **điểm cắm** trong `ai-kit.yml`: spec adapter, bộ nhãn TC, hướng dẫn viết test, lệnh chạy test, tracker adapter ([01 §2](01-architecture.md)). |
-| D14 | Hoàn thiện kit trên **dự án mẫu trong repo này** (nay `examples/project1`; unit test dùng dữ liệu ở `test/fixtures/demo`), rồi mới áp dụng vào app-base. |
+| D14 | Hoàn thiện kit trên **dự án mẫu trong repo này** (nay `examples/project1`; unit test dùng dự án giả ở `cli/test/fixtures/`), rồi mới áp dụng vào app-base. |
 | D15 | **Hai lớp quy định:** kỹ thuật là của repo (`guides`), quy trình là của kit. Kit không viết đè hướng dẫn của repo, chỉ chèn một khối có đánh dấu. Mâu thuẫn thì AI dừng hỏi ([10 §1](10-quy-trinh.md)). |
 | D16 | Quy trình viết **trung tính** (không stack, không mã hay đường dẫn của một dự án), test chặn chuỗi riêng dự án. Prompt tiếng Việt; ngôn ngữ đầu ra theo `language`. |
 | D17 | Lệnh AI cài vào dự án là **vỏ lệnh** trỏ tới `.ai-kit/process/` — đổi phiên bản kit là đổi quy trình. Vỏ có dấu `ai-kit:shell`; lệnh riêng của repo không bị ghi đè. Máy chưa có kit thì vỏ tự clone theo `kitRef`. |
@@ -76,6 +77,8 @@ mã feature của PR → gate (TC + script) → chạy run.command vào app → 
 | D22 | **Đối chiếu spec ↔ prototype** chia hai: phần tất định là lệnh `kit check-prototype` (mỗi `SCR` có `<section id>`, mỗi thành phần đánh số có `data-ref`, không thừa); phần cần đọc hiểu (nhãn, quy tắc hiển thị, luồng bấm được, không tự thêm nghiệp vụ) giao agent `spec-reviewer`, vì cùng thời điểm (trước khi duyệt) và cùng đầu vào. `/prototype` chạy cả hai sau mỗi lần dựng. |
 | D23 | **Nhúng kit hai bước:** clone kit + `kit init` (chạy lại được, tự kiểm, không đụng `.github/`), rồi `/kit-adopt`. Đồng đội không cài gì; nâng cấp = đổi `kitRef` rồi `kit init`. |
 | D24 | **Cấu trúc `e2e/` theo module:** `testcases/<MOD>/`, `scripts/<MOD>/`, `pages/<MOD>/` (+ `common/`), `tests/` (viết tay), `support/` (khung test), `testdata/`; mọi thứ sinh ra trong `test-results/` (`reports/` markdown cho người đọc, `playwright/`, `.auth/`, `raw/` JSON). `<MOD>` = mã module. `ai-kit.yml`, `playwright.config.mjs` ở gốc repo. Kit bắt buộc phần nó đọc / ghi (TC, script, kết quả); phần còn lại là khuyến nghị. Script phẳng kiểu cũ → `kit init --migrate` ([01 §3.1](01-architecture.md)). |
+| D25 | **Kết quả e2e trên môi trường dùng chung, không AI:** kit chờ app (gọi thẳng địa chỉ app, không đòi endpoint health) và báo "môi trường không lên" thay vì test fail giả; mỗi môi trường một **issue theo dõi** tự mở / cập nhật / đóng — không phải bug, bug vẫn ghi từ máy sau triage ([04 §5](04-ci-workflow.md)). |
+| D26 | **Dữ liệu test dựng qua fixture**, ưu tiên API công khai của app, API riêng cho test khi không có; script không gọi API ghi trực tiếp (`check-script` chặn, trừ TC tầng `api`). Lỗi xảy ra trong fixture là **lỗi dựng dữ liệu** — tất định theo vị trí lỗi (`run.setupPaths`), không kết luận feature hỏng ([06](06-test-data.md)). AI viết fixture mới khi sinh script (người duyệt cùng script); khi triage thì không tự sửa — `check-paths --triage` chặn, người quyết. |
 
 ## Mục lục
 
@@ -84,9 +87,9 @@ mã feature của PR → gate (TC + script) → chạy run.command vào app → 
 | [01-architecture.md](01-architecture.md) | Kiến trúc, phân chia repo, phần TAF của `ai-kit.yml` |
 | [02-testcase-format.md](02-testcase-format.md) | Định dạng test case markdown, quy tắc phủ, quy trình duyệt |
 | [03-script-generation.md](03-script-generation.md) | Sinh script ở máy (`/e2e-script`): khi nào sinh, luật của script, phạm vi file AI được ghi |
-| [04-ci-workflow.md](04-ci-workflow.md) | Cắm kit vào CI: `kit e2e`, action `e2e`, đoạn mẫu, người / AI / CI làm gì |
+| [04-ci-workflow.md](04-ci-workflow.md) | Cắm kit vào CI: `kit gate --pr`, `kit e2e`, action `gate` và `e2e`, workflow mẫu một file, issue theo dõi môi trường, người / AI / CI làm gì |
 | [05-environments.md](05-environments.md) | Phạm vi TAF ba tầng (CI dự án / khung test dự án / kit); môi trường, persona |
-| [06-test-data.md](06-test-data.md) | Test data: nguyên tắc cho fixture của dự án |
+| [06-test-data.md](06-test-data.md) | Test data: dựng bằng gì (API công khai → API test), ai viết fixture, lỗi dựng dữ liệu |
 | [07-bug-reporting.md](07-bug-reporting.md) | Triage, ghi bug, báo cáo |
 | [08-roadmap.md](08-roadmap.md) | Lộ trình, rủi ro, điểm còn mở |
 | [09-playwright-primer.md](09-playwright-primer.md) | Playwright cho người mới |

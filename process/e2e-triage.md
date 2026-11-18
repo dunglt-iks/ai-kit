@@ -30,7 +30,9 @@ test case**.
    `GITHUB_TOKEN=$(gh auth token) GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner -q .nameWithOwner)`.
    Chạy `kit file-bugs --dry-run` trước, trình bày, rồi `kit file-bugs` (thêm `--close-fixed` nếu đây là kết quả
    hồi quy trên nhánh phát triển và người dùng muốn đóng bug đã hết).
-5. **Script đã sửa:** `kit check-script <mã>`, `kit lint-script`, `kit check-paths` phải sạch. **Hỏi** trước khi
+5. **Script đã sửa:** `kit check-script <mã>`, `kit lint-script`, `kit check-paths --triage` phải sạch. Báo file fixture
+   (`run.setupPaths`) bị đổi → **dừng, hỏi** người dùng: nêu fixture sai ở đâu, vì sao không phải lỗi app; đồng ý thì
+   kiểm lại bằng `kit check-paths` (không `--triage`). **Hỏi** trước khi
    commit (`test(e2e): sửa script sau triage`) và trước khi push.
 6. **Báo lại:** số test fail theo loại, script đã sửa, bug đã ghi (số issue), việc còn lại — `app-bug` gợi ý
    `/dev #<issue>` để sửa code.

@@ -22,10 +22,17 @@ Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Lệnh CLI: `node
 | `flaky` | Lúc pass lúc fail không do code đổi (thứ tự, thời gian) — **căn cứ vào lịch sử**: `kit flaky` (test có cả pass lẫn fail qua các lần chạy). Không có lịch sử thì không tự kết luận flaky |
 | `tc-wrong` | TC mâu thuẫn với spec hiện tại |
 
+Lỗi kit đã đánh dấu **lỗi dựng dữ liệu** (`"setup": true` trong `result.json`, mục riêng trong báo cáo): lỗi xảy ra
+trong fixture, feature đang test **chưa được kiểm** — không phân loại `app-bug` cho feature đó. Thường là `env` (môi
+trường thiếu cấu hình: API test chưa bật, persona chưa có) hoặc `script-bug` (fixture gọi sai API / sai dữ liệu). API
+của app dùng để dựng dữ liệu trả sai thì nêu rõ trong `summary` và đề xuất kiểm bằng TC tầng `api` của chính API đó.
+**Không tự sửa fixture** (`run.setupPaths`): ghi đề xuất sửa (file, lý do, vì sao không phải lỗi app) vào `summary` và
+dừng ở bước đó — người dùng quyết. `kit check-paths --triage` bắt fixture bị đổi. Không bao giờ nới fixture để che lỗi app.
+
 3. `script-bug`: sửa script / page object (chỉ trong `scripts.allowedPaths`), chạy lại `kit e2e <MÃ> --no-gate --merge --base-url <địa chỉ app>` (`--merge` giữ kết quả của các test khác trong report), tối đa **2 vòng**. Pass thì ghi `fixed: true`. Vẫn fail thì phân loại lại theo bằng chứng mới.
 4. **Không bao giờ** sửa script cho khớp với app khi app làm khác TC (nới `expect`, đổi giá trị mong đợi, bỏ bước). Trường hợp đó là `app-bug`.
 
-Sau khi sửa script: `kit rehash <MÃ>` nếu cần, `kit check-script <MÃ>`, `kit check-paths` phải sạch.
+Sau khi sửa script: `kit rehash <MÃ>` nếu cần, `kit check-script <MÃ>`, `kit check-paths --triage` phải sạch.
 
 ## Ghi kết quả
 

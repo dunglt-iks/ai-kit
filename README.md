@@ -15,7 +15,8 @@ của dự án) → báo cáo → bug.
 PRD/FSD   HTML tĩnh      người duyệt     TC markdown   người duyệt TC              script        code    PR
 (spec-reviewer soát spec + đối chiếu prototype)                                                (tester → reviewer)
 
-CI của dự án (tuỳ chọn, không AI): dựng app → kit e2e → gate (TC + script) → chạy → báo cáo
+CI của dự án (tuỳ chọn, không AI): PR → kit gate --pr (tuân thủ: mã, duyệt, TC, script) ; deploy dev xong / hằng đêm
+                                   → kit e2e all (chờ app → chạy → báo cáo → issue theo dõi môi trường)
 test fail (máy hoặc CI) → /e2e-triage ở máy → sửa script / ghi bug   ;   bug → /dev #<issue>
 ```
 
@@ -45,8 +46,9 @@ dẫn của repo mâu thuẫn với kit → bạn duyệt → commit.
 
 - **Đồng đội:** không cài gì — lệnh đầu tiên tự clone kit theo `kitRef` trong `ai-kit.yml`.
 - **Nâng cấp:** đổi `kitRef` → `kit init`.
-- **CI (tuỳ chọn):** thêm một bước `uses: dunglt-iks/ai-kit/actions/e2e@v2` vào workflow của dự án, sau bước dựng app
-  ([docs/04](docs/04-ci-workflow.md)). Kit không sửa workflow, không dựng app, không gọi AI trên CI.
+- **CI (tuỳ chọn):** chép workflow mẫu một file ở [docs/04 §4](docs/04-ci-workflow.md): PR → `actions/gate`; deploy
+  dev xong / hằng đêm → `actions/e2e` vào địa chỉ đã deploy. Build, deploy vẫn là workflow của dự án; kit không sửa
+  workflow, không dựng app, không gọi AI trên CI.
 - **Đang dùng TAF 1.x:** `kit init` tạo `ai-kit.yml` từ `e2e/taf.config.yml` ([docs/11 §3](docs/11-cau-hinh.md)).
 
 ## Cấu trúc repo
@@ -61,7 +63,7 @@ dẫn của repo mâu thuẫn với kit → bạn duyệt → commit.
 | [`actions/`](actions/README.md) | Action `e2e`: điểm cắm của kit vào CI GitHub của dự án (không AI) |
 | [`prompts/`](prompts/README.md) | Prompt TAF chạy ở máy: sinh TC, sinh script, triage |
 | [`docs/`](docs/README.md) | Tài liệu thiết kế |
-| [`test/`](test/) | Unit test (`npm test`) |
+| [`cli/test/`](cli/test/) | Unit test của kit (`npm test`) — dự án giả ở `cli/test/fixtures/` |
 | [`examples/project1/`](examples/project1/) | Dự án mẫu BE Go + FE Next.js (đăng nhập JWT), chưa nhúng kit — để demo / thực hành ([docs/12](docs/12-user-guide.md)) |
 
 ## Nguyên tắc

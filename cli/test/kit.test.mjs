@@ -8,13 +8,13 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { bridgeBlock, upsertBlock } from "../cli/src/bridge.mjs";
-import { loadConfig, loadProject } from "../cli/src/config.mjs";
-import { buildContext, contextText, doctor, nextCode } from "../cli/src/context.mjs";
-import { initProject } from "../cli/src/init.mjs";
+import { bridgeBlock, upsertBlock } from "../src/bridge.mjs";
+import { loadConfig, loadProject } from "../src/config.mjs";
+import { buildContext, contextText, doctor, nextCode } from "../src/context.mjs";
+import { initProject } from "../src/init.mjs";
 
-const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEMO = path.join(KIT, "test/fixtures/demo"); // dữ liệu cho test: cấu hình, spec, TC, vỏ lệnh của một dự án đã nhúng kit
+const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REPO_V2 = path.join(KIT, "cli/test/fixtures/repo-v2"); // dữ liệu cho test: cấu hình, spec, TC, vỏ lệnh của một dự án đã nhúng kit
 
 function tmp(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-"));
@@ -154,7 +154,7 @@ test("kit init trên repo TAF 1.x: tạo ai-kit.yml chuyển từ e2e/taf.config
 });
 
 test("context + next-code trên dự án mẫu: mã kế tiếp không tái dùng số", async () => {
-  const cfg = await loadProject({ root: DEMO });
+  const cfg = await loadProject({ root: REPO_V2 });
   const c = await buildContext(cfg);
   assert.deepEqual(c.layers.technical.guides, ["CLAUDE.md", "e2e/README.md"]);
   assert.deepEqual(c.features.DM.map((f) => f.code), ["DM-F01", "DM-F02"]);
@@ -175,7 +175,7 @@ test("context + next-code trên dự án mẫu: mã kế tiếp không tái dùn
 
 test("CLI kit: context --json, doctor, spec, next-code trên dự án mẫu", () => {
   const run = (bin, args) =>
-    execFileSync("node", [path.join(KIT, "cli/bin", bin), ...args], { cwd: DEMO, encoding: "utf8" });
+    execFileSync("node", [path.join(KIT, "cli/bin", bin), ...args], { cwd: REPO_V2, encoding: "utf8" });
   assert.equal(JSON.parse(run("kit.mjs", ["context", "--json"])).language, "vi");
   assert.match(run("kit.mjs", ["doctor"]), /0 lỗi/);
   assert.match(run("kit.mjs", ["spec", "DM-F01"]), /DM-F01/);
@@ -219,7 +219,7 @@ test("quy trình, vỏ lệnh, khuôn không chứa thứ riêng của một d�
 });
 
 test("vỏ lệnh/agent: frontmatter YAML hợp lệ, trỏ tới file quy trình có thật; mọi lệnh có quy trình", async () => {
-  const { createAgentAdapter } = await import("../adapters/agent/claude.mjs");
+  const { createAgentAdapter } = await import("../../adapters/agent/claude.mjs");
   for (const [src] of createAgentAdapter().files) {
     const text = fs.readFileSync(path.join(KIT, src), "utf8");
     const fm = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -243,12 +243,12 @@ test("vỏ lệnh/agent: frontmatter YAML hợp lệ, trỏ tới file quy trìn
 async function demoCopy() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-demo-"));
   for (const f of ["ai-kit.yml", "CLAUDE.md", "docs", "e2e/README.md"])
-    fs.cpSync(path.join(DEMO, f), path.join(dir, f), { recursive: true });
+    fs.cpSync(path.join(REPO_V2, f), path.join(dir, f), { recursive: true });
   return dir;
 }
 
 test("kit approve + ready: spec nháp → duyệt (ghi người, ngày); prototype theo dõi bằng cột + dấu hash màn hình", async () => {
-  const { approve, readyFeature } = await import("../cli/src/approve.mjs");
+  const { approve, readyFeature } = await import("../src/approve.mjs");
   const dir = await demoCopy();
   const prd = path.join(dir, "docs/features/addon/DM-demo/PRD-demo.md");
   const fsd = path.join(dir, "docs/features/addon/DM-demo/FSD-demo.md");
@@ -302,8 +302,8 @@ test("kit approve + ready: spec nháp → duyệt (ghi người, ngày); prototy
 });
 
 test("mã feature khai trùng (hai nhánh cùng cấp DM-F03): ready, gate, doctor đều báo", async () => {
-  const { readyFeature } = await import("../cli/src/approve.mjs");
-  const { gateFeature } = await import("../cli/src/gate.mjs");
+  const { readyFeature } = await import("../src/approve.mjs");
+  const { gateFeature } = await import("../src/gate.mjs");
   const dir = await demoCopy();
   const fsd = path.join(dir, "docs/features/addon/DM-demo/FSD-demo.md");
   fs.appendFileSync(fsd, "\n## 9. DM-F01 — Bản trùng từ nhánh khác\n");
@@ -314,7 +314,7 @@ test("mã feature khai trùng (hai nhánh cùng cấp DM-F03): ready, gate, doct
 });
 
 test("kit check-prototype: SCR ↔ <section id>, thành phần ↔ data-ref, không thừa, phiên bản spec", async () => {
-  const { checkPrototype } = await import("../cli/src/prototype.mjs");
+  const { checkPrototype } = await import("../src/prototype.mjs");
   const dir = await demoCopy();
   const mod = path.join(dir, "docs/features/addon/DM-demo");
   let cfg = await loadProject({ root: dir });
@@ -345,11 +345,11 @@ test("kit check-prototype: SCR ↔ <section id>, thành phần ↔ data-ref, kh�
 
 
 test("kit approve --testcase: ghi status + reviewer; từ chối TC lỗi thời hoặc còn lỗi", async () => {
-  const { approve } = await import("../cli/src/approve.mjs");
-  const { gateFeature } = await import("../cli/src/gate.mjs");
+  const { approve } = await import("../src/approve.mjs");
+  const { gateFeature } = await import("../src/gate.mjs");
   const dir = await demoCopy();
-  fs.cpSync(path.join(DEMO, "e2e/testcases"), path.join(dir, "e2e/testcases"), { recursive: true });
-  fs.cpSync(path.join(DEMO, "e2e/testdata"), path.join(dir, "e2e/testdata"), { recursive: true });
+  fs.cpSync(path.join(REPO_V2, "e2e/testcases"), path.join(dir, "e2e/testcases"), { recursive: true });
+  fs.cpSync(path.join(REPO_V2, "e2e/testdata"), path.join(dir, "e2e/testdata"), { recursive: true });
   const tc = path.join(dir, "e2e/testcases/DM/DM-F01.md");
   const orig = fs.readFileSync(tc, "utf8");
   fs.writeFileSync(tc, orig.replace("status: Đã duyệt", "status: Nháp").replace("reviewer: taf-demo", 'reviewer: ""'));
@@ -423,11 +423,11 @@ test("next-code: vượt 99 cấp tiếp 100 và kit nhận ra mã 3 chữ số,
 });
 
 test("tự duyệt test case: cảnh báo; gate.allowSelfApproval: false → approve từ chối, gate báo", async () => {
-  const { approve } = await import("../cli/src/approve.mjs");
-  const { gateFeature } = await import("../cli/src/gate.mjs");
+  const { approve } = await import("../src/approve.mjs");
+  const { gateFeature } = await import("../src/gate.mjs");
   const dir = await demoCopy();
-  fs.cpSync(path.join(DEMO, "e2e/testcases"), path.join(dir, "e2e/testcases"), { recursive: true });
-  fs.cpSync(path.join(DEMO, "e2e/testdata"), path.join(dir, "e2e/testdata"), { recursive: true });
+  fs.cpSync(path.join(REPO_V2, "e2e/testcases"), path.join(dir, "e2e/testcases"), { recursive: true });
+  fs.cpSync(path.join(REPO_V2, "e2e/testdata"), path.join(dir, "e2e/testdata"), { recursive: true });
   const g = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" });
   g("init", "-q");
   g("add", ".");

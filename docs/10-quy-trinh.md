@@ -84,7 +84,7 @@ file **không** có dấu là lệnh riêng của repo (vd repo đã có `/spec`
 - **Không có agent BA/DEV riêng:** `/spec`, `/dev` cần hỏi qua lại với người dùng nên chạy ở luồng chính; agent con
   chỉ dùng cho việc cần **độc lập** (soát spec, test, review).
 - **CI không gọi AI** (D8): TC, script, phân loại test fail làm ở máy trước khi push. `/e2e-script` sinh script
-  (`kit plan-gen` chọn việc, `check-script` / `check-paths` kiểm), hỏi trước khi chạy thử; gate (`kit e2e`, ở máy và trên CI)
+  (`kit plan-gen` chọn việc, `check-script` / `check-paths` kiểm), hỏi trước khi chạy thử; gate (`kit e2e` ở máy, `kit gate --pr` trên CI)
   chặn PR khi script thiếu hoặc lệch TC (`gate.requireScript`). Test fail ở máy hay trên CI → `/e2e-triage` (tải kết quả CI bằng
   `gh run download`), phân loại theo `prompts/triage.md`, sửa script, ghi bug app khi người dùng đồng ý.
 - **Ba chế độ của `/dev`:** *mới*; *đồng bộ* — dòng đầu kế hoạch `Spec đã triển khai: <file> v<x.y>` là mốc, spec đổi
@@ -106,7 +106,7 @@ file **không** có dấu là lệnh riêng của repo (vd repo đã có `/spec`
    lệnh tắt `kit`; `--update` để nâng cấp, `--yes` cho CI) → `ai-kit.yml` (dò `guides`, `agents`, `kitRef`), vỏ lệnh/agent, khối cầu nối,
    `.gitignore`, rồi tự kiểm (như `kit doctor`). Không đụng `.github/`. `--dry-run` để xem trước.
 2. **`/kit-adopt`** trong Claude Code → AI đề xuất giá trị `ai-kit.yml` có căn cứ (`run.command`, `stack.checks`…),
-   liệt kê mâu thuẫn guides ↔ kit, gợi ý chỗ cắm `actions/e2e` vào CI sẵn có → người duyệt → commit.
+   liệt kê mâu thuẫn guides ↔ kit, gợi ý workflow mẫu `actions/gate` + `actions/e2e` (04 §4) → người duyệt → commit.
 
 Đồng đội: không cài gì — lệnh đầu tiên (vd `/spec`) tự clone kit theo `kitRef`. Nâng cấp: đổi `kitRef` (và `@<ref>`
 của action trong CI) → `kit init`. Cắm vào CI (tuỳ dự án): [04](04-ci-workflow.md).
@@ -117,7 +117,7 @@ của action trong CI) → `kit init`. Cắm vào CI (tuỳ dự án): [04](04-c
 ## 5. Ranh giới
 
 - Kit không biết stack: không có lệnh build/test, cổng, tên thư mục code nào trong `process/`. Test
-  `test/kit.test.mjs` chặn chuỗi riêng của dự án lọt vào `process/`, `claude/`, `prompts/`, `templates/`, `RULES.md`.
+  `cli/test/kit.test.mjs` chặn chuỗi riêng của dự án lọt vào `process/`, `claude/`, `prompts/`, `templates/`, `RULES.md`.
 - Bước quyết định viết bằng code (`cli/`): cấp mã, ghi và đọc trạng thái duyệt (`approve`, `ready`), gate, chèn khối
   cầu nối, doctor. AI chỉ
   phỏng vấn, viết tài liệu, code, test, review.

@@ -44,12 +44,12 @@ Adapter `prd-fsd` có sẵn đọc định dạng PRD + FSD của app-base (feat
 repo dự án (CWD)                         .ai-kit/  (ai-kit @ tag đã ghim)
 ├── ai-kit.yml          cấu hình         ├── cli/        kit init | doctor | context | approve | e2e | gate …
 ├── CLAUDE.md, AGENTS.md… (guides)       ├── RULES.md, process/   quy trình /spec … /ship, agent tester/reviewer
-├── .claude/commands|agents  vỏ lệnh     ├── actions/e2e  điểm cắm CI (GitHub)
+├── .claude/commands|agents  vỏ lệnh     ├── actions/gate, e2e  điểm cắm CI (GitHub)
 ├── <spec>                               ├── prompts/    testcase, script, triage
 ├── playwright.config.mjs                ├── adapters/   spec (prd-fsd), tracker (github), agent (claude, agents-md)
 ├── e2e/        (§3.1)                   ├── claude/     vỏ lệnh/agent cài vào .claude/
 └── .github/workflows/  của dự án        ├── templates/  ai-kit.yml, khuôn PRD/FSD/kế hoạch/prototype
-    (thêm một bước actions/e2e nếu muốn) └── examples/project1/  dự án mẫu (Go + Next.js)
+    (+ workflow mẫu ai-kit.yml: 04 §4)   └── examples/project1/  dự án mẫu (Go + Next.js)
 ```
 
 ### 3.1 Thư mục `e2e/`
@@ -105,7 +105,7 @@ scripts:
   dir: e2e/scripts                     # mặc định; <dir>/<MOD>/<MÃ><ext>
   ext: .spec.mjs                       # mặc định; dự án TypeScript đặt .spec.ts
   guide: e2e/README.md                 # Claude đọc trước khi viết script
-  allowedPaths: [e2e/scripts/**, e2e/pages/**]   # mặc định; TC đã duyệt không bao giờ được AI sửa (03 §5)
+  allowedPaths: [e2e/scripts/**, e2e/pages/**, e2e/support/**]   # mặc định; TC đã duyệt không bao giờ được AI sửa (03 §5)
   forbid: ['page\.locator\(']          # cấm trong script sinh ra (locator chỉ nằm trong page object)
   lint: npx tsc --noEmit               # tuỳ chọn
 run:
@@ -128,7 +128,8 @@ tracker: { adapter: github, labels: [bug, e2e] }
 | `kit spec` | In cấu trúc spec qua adapter (`--json` cho prompt) | Không |
 | `kit lint-tc`, `kit gate` | Kiểm TC, kiểm TC + script trước khi chạy | Không |
 | `kit plan-gen`, `kit check-paths`, `kit check-script`, `kit rehash` | Chọn feature cần sinh script, kiểm Claude chỉ ghi chỗ được phép, kiểm script khớp TC | Không |
-| `kit e2e` | Điểm cắm CI và chạy ở máy: lấy mã feature của PR → gate → chạy → báo cáo ([04](04-ci-workflow.md)) | Không |
+| `kit gate --pr` | Điểm cắm CI cho PR: mã feature của PR → gate, comment, nhãn chặn; không chạy test ([04](04-ci-workflow.md)) | Không |
+| `kit e2e` | Điểm cắm CI sau deploy / hằng đêm và chạy ở máy: (gate) → chờ app → chạy → báo cáo, tách lỗi dựng dữ liệu → issue theo dõi môi trường ([04](04-ci-workflow.md)) | Không |
 | `kit report`, `kit file-bugs` | Báo cáo theo feature, bug theo fingerprint (test đã phân loại) | Không |
 | `kit init`, `doctor`, `context`, `next-code`, `approve` | Nhúng kit, kiểm việc nhúng, ngữ cảnh cho AI, cấp mã ([11 §4](11-cau-hinh.md)) | Không |
 | `prompts/testcase.md`, `script.md`, `triage.md` | Spec → TC, TC → script, phân loại lỗi — chạy ở máy (`/testcase`, `/e2e-script`, `/e2e-triage`) | Có |

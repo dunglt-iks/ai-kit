@@ -27,7 +27,13 @@ File: `<scripts.dir>/<MOD>/<MÃ><scripts.ext>` — `<MOD>` là mã module (cùng
 - TC có bảng "Dữ liệu kiểm tra": **một test cho mỗi dòng**, tên `"<mã TC> <tên> [<số dòng>] <giá trị chính>"`.
 - TC `[DEPRECATED]`: không có test. Không viết test cho mã TC không có trong file TC.
 - **Persona**: theo frontmatter, TC ghi đè thì theo TC. Cách áp dụng: theo hướng dẫn của dự án.
-- **Tiền điều kiện**: dựng bằng fixture/factory của dự án (qua API), không qua giao diện.
+- **Tiền điều kiện, dữ liệu**: dựng bằng fixture / factory của dự án (`run.setupPaths`, mặc định `e2e/support/`), không
+  qua giao diện. **Script không gọi API ghi trực tiếp** (`request.post / put / patch / delete`) — `check-script` báo lỗi;
+  chỉ TC tầng `api` mới gọi thẳng API mà nó kiểm. Chưa có fixture cho loại dữ liệu TC cần: thêm fixture vào
+  `e2e/support/` (nếu nằm trong `scripts.allowedPaths`) theo thứ tự nguồn API: fixture đã có (dùng lại) → mục API trong
+  FSD → route trong code BE (chỉ đọc); ưu tiên **API công khai của app** gọi bằng persona đủ quyền, rồi mới tới API riêng
+  cho test. Ghi fixture mới vào danh sách fixture của `scripts.guide` nếu guide có danh sách đó. **Không có API phù hợp →
+  DỪNG, hỏi người dùng** (thêm API test qua `/dev`, dựng qua giao diện, hay dùng dữ liệu có sẵn) — không sửa code app.
 - **Dữ liệu tạo qua giao diện** (bước "Lưu" của TC) cũng phải được dọn: lấy mã bản ghi vừa tạo (từ thông báo / URL / response
   theo page object) và đăng ký dọn qua fixture — cách cụ thể theo hướng dẫn của dự án. Không để sót dữ liệu.
 - **TC tầng `api`** (`{layer}: api`): kiểm qua fixture `request` của Playwright (gọi API, kiểm status / body), không dùng
@@ -65,4 +71,5 @@ Báo lại ngắn gọn:
 1. File đã ghi (script, page object), số test mỗi feature.
 2. Kết quả `check-script`, `lint-script`, `check-paths`, và `run` nếu có.
 3. Test còn fail: mã TC, lý do, bạn cho là lỗi script hay nghi bug ứng dụng.
-4. Việc cần dự án bổ sung (fixture, testid…).
+4. Fixture mới / đã sửa (nếu có) và API nó gọi — để người duyệt cùng script.
+5. Việc cần dự án bổ sung (API dựng dữ liệu, testid…).

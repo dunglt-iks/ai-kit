@@ -181,6 +181,13 @@ diện nên phải `fx.track(username)` để dọn.
 AI chạy kiểm tra cuối (`stack.checks`, `kit e2e changed`), soạn mô tả PR, **hỏi trước khi push**. Repo demo không có
 remote thì trả lời không.
 
+## Phần C (nâng cao) — CI
+
+Khi repo đã có workflow build + deploy dev: chép workflow mẫu một file ở [04 §4](04-ci-workflow.md) — PR chạy
+`actions/gate` (kiểm tuân thủ, không cần app), deploy dev xong / hằng đêm chạy `actions/e2e` vào địa chỉ đã deploy
+(chờ app, báo cáo, issue theo dõi "E2E `dev` đang đỏ"). Test fail trên dev: người trực chạy `/e2e-triage <run-id>` ở
+máy. `/kit-adopt` đề xuất sẵn tên workflow deploy và các biến cần khai.
+
 ## Dọn dẹp, làm lại
 
 ```bash

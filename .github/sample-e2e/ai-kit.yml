@@ -1,0 +1,9 @@
+# Cấu hình tối thiểu để kiểm workflow mẫu trên CI của kit (xem README.md cùng thư mục).
+version: 2
+kitRef: v2
+guides: [CLAUDE.md, e2e/README.md]
+testcases: { personas: e2e/testdata/personas.yml }
+scripts: { ext: .spec.ts, guide: e2e/README.md }
+run:
+  command: npx playwright test --reporter=json,list {files}
+  baseUrlEnv: E2E_BASE_URL

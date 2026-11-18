@@ -137,6 +137,21 @@ export function assertionStats(code) {
   return { byTc, fails, contains };
 }
 
+const API_WRITE = /\b(?:request|apiRequest|api)\s*\.\s*(post|put|patch|delete)\s*\(/g;
+
+/**
+ * Lời gọi API ghi (request.post / put / patch / delete) trong mã script (đã bỏ comment), kèm mã TC của khối test chứa
+ * nó (null = ngoài mọi test: beforeEach, beforeAll, hàm phụ đầu file).
+ * @returns {{ index: number, method: string, tc: string | null }[]}
+ */
+export function apiWrites(code) {
+  const marks = [...code.matchAll(TEST_TITLE)].map((m) => ({ index: m.index, id: m[2] }));
+  return [...code.matchAll(API_WRITE)].map((m) => {
+    const owner = marks.filter((k) => k.index <= m.index).pop();
+    return { index: m.index, method: m[1], tc: owner ? owner.id : null };
+  });
+}
+
 /** Nội dung file ở commit `base` (null nếu chưa có / không phải repo git). */
 function committed(cfg, abs, base) {
   try {
@@ -216,6 +231,16 @@ export function checkScript(cfg, feature, o = {}) {
   for (const c of cases.filter((x) => !x.deprecated && x.layer === "api"))
     if (q.byTc[c.id]?.usesPage)
       warnings.push(`${c.id}: tầng api nhưng test dùng \`page\` — kiểm qua fixture \`request\`, không mở trình duyệt`);
+  // Dữ liệu test dựng qua fixture của dự án (run.setupPaths, scripts.guide), không gọi API ghi thẳng trong script:
+  // API đổi chỉ sửa một chỗ, lỗi dựng dữ liệu được tách khỏi lỗi feature. TC tầng api (kiểm chính API đó) thì được.
+  const apiTc = new Set(cases.filter((c) => !c.deprecated && c.layer === "api").map((c) => c.id));
+  const allApi = active.size > 0 && [...active].every((id) => apiTc.has(id));
+  for (const w of apiWrites(code)) {
+    if (w.tc ? apiTc.has(w.tc) : allApi) continue;
+    errors.push(
+      `dòng ${line(w.index)}: ${w.tc ? `${w.tc} ` : ""}gọi API ghi trực tiếp (request.${w.method}) — dựng / dọn dữ liệu qua fixture của dự án (${(cfg.run.setupPaths || []).join(", ") || "e2e/support"}); chỉ TC tầng api mới gọi API trực tiếp`,
+    );
+  }
   for (const i of q.contains) warnings.push(`dòng ${line(i)}: toContainText — nên toHaveText trên đúng ô / phần tử (khớp chính xác giá trị TC)`);
   // Số expect giảm so với bản đã commit: dấu hiệu test bị nới — người review xem kỹ
   const before = committed(cfg, sp, o.base || "HEAD");
@@ -273,7 +298,14 @@ export function changedFiles(cfg, base = "HEAD") {
 }
 
 /** File đã đổi mà không nằm trong scripts.allowedPaths. */
-export function checkPaths(cfg, base) {
+/**
+ * File đã đổi phải nằm trong scripts.allowedPaths. `triage`: thêm `setup` = file fixture (run.setupPaths) bị đổi —
+ * /e2e-triage không tự sửa fixture (dễ "nới fixture cho test xanh", che lỗi app); người đồng ý thì kiểm lại không --triage.
+ * @param {any} cfg
+ * @param {string} [base]
+ * @param {{ triage?: boolean }} [o]
+ */
+export function checkPaths(cfg, base, o = {}) {
   const files = changedFiles(cfg, base);
   const tcDir = `${cfg.testcases.dir.replace(/\/$/, "")}/`;
   /** File TC đổi: chấp nhận khi là nháp, hoặc đã duyệt mà approvedHash còn khớp (người vừa duyệt, chưa commit). */
@@ -288,6 +320,7 @@ export function checkPaths(cfg, base) {
     outside: files.filter(
       (f) => f.startsWith("../") || (!matchesAny(f, cfg.scripts.allowedPaths) && !tcOk(f)),
     ),
+    setup: o.triage ? files.filter((f) => matchesAny(f, cfg.run.setupPaths || [])) : [],
   };
 }
 

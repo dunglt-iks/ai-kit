@@ -11,6 +11,34 @@ TAF không tạo dữ liệu test. Script sinh ra gọi **factory và fixture c�
 
 TC chỉ mô tả **trạng thái** cần có ("đơn có 2 dòng, đã duyệt"), không mô tả cách tạo. Script dùng factory của dự án để tạo trạng thái đó.
 
+## Dựng dữ liệu bằng gì
+
+Kit **không biết và không gọi** API nào của app. Việc dựng dữ liệu nằm trong **fixture của bộ khung test**
+(`run.setupPaths`, mặc định `e2e/support/**`); script chỉ gọi fixture. Thứ tự ưu tiên khi viết fixture:
+
+| # | Cách | Khi nào | Lưu ý |
+|---|---|---|---|
+| 1 | Persona, dữ liệu có sẵn trên môi trường | Test chỉ đọc | App không phải làm gì; test sửa dữ liệu dùng chung dễ đụng nhau |
+| 2 | **API công khai của app** (vd QTV tạo user qua API quản trị), gọi bằng persona đủ quyền | Mặc định để tạo dữ liệu | Không cần cửa hậu; dữ liệu đi đúng luồng thật |
+| 3 | API riêng cho test (`/api/test/*`) | App không có API công khai tương ứng | App phải làm thêm (qua `/dev`, người duyệt); chỉ bật ở môi trường test, **không bao giờ ở production** |
+| 4 | Giao diện | Chính luồng đó là thứ TC đang kiểm | Chậm, dễ vỡ; dọn bằng `fx.track` |
+| — | Ghi thẳng vào DB | Tránh | Dính chặt schema; thường không có quyền vào DB của dev / staging |
+
+**API dựng dữ liệu bị lỗi thì sao?** Lỗi của chính API đó được bắt bởi test riêng của nó (TC tầng `api`). Trong test
+khác, lỗi xảy ra trong fixture được kit báo riêng là **lỗi dựng dữ liệu** (vị trí lỗi nằm trong `run.setupPaths`):
+feature đang test chưa được kiểm, không kết luận feature hỏng — sửa fixture / môi trường rồi chạy lại ([07](07-bug-reporting.md)).
+
+**Ai viết fixture, khi nào.** Fixture nền (persona, đăng nhập, tài khoản test) do dev / QA dựng khi lập bộ khung test.
+Fixture cho loại dữ liệu mới: AI viết ở `/e2e-script` khi TC cần dữ liệu chưa có fixture ("Tiền điều kiện", "Dữ liệu
+kiểm tra"), lấy API theo thứ tự: fixture đã có (dùng lại) → mục API trong FSD → route trong code BE; người duyệt cùng
+script. Danh sách fixture và cách dùng ghi trong `scripts.guide` (vd `e2e/README.md`). Không có API phù hợp → AI **dừng,
+hỏi người** (thêm API test qua `/dev`, dựng qua giao diện, hay dùng dữ liệu có sẵn) — AI không sửa code app ở bước viết
+script.
+
+**Script không gọi API ghi trực tiếp.** `check-script` (và gate) báo lỗi khi script tự gọi `request.post / put / patch /
+delete` — dựng / dọn dữ liệu phải qua fixture: API đổi chỉ sửa một chỗ, lỗi dựng dữ liệu được phân loại đúng. TC tầng
+`api` (kiểm chính API đó) thì được gọi trực tiếp. Đọc (`request.get`) để kiểm kết quả vẫn được.
+
 ## Fixture tự dọn (gợi ý)
 
 ```ts

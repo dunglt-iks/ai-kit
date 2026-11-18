@@ -70,7 +70,8 @@ const DEFAULTS = {
     guide: null, // hướng dẫn viết test của dự án, Claude đọc khi sinh script
     // Khi sinh script / triage, AI chỉ được ghi vào đây. Test case không nằm trong danh sách: check-paths chỉ chấp nhận
     // TC nháp hoặc TC đã duyệt còn khớp approvedHash — AI không được sửa TC đã duyệt.
-    allowedPaths: ["e2e/scripts/**", "e2e/pages/**"],
+    // e2e/support: fixture dựng dữ liệu loại mới (/e2e-script) — người duyệt cùng script
+    allowedPaths: ["e2e/scripts/**", "e2e/pages/**", "e2e/support/**"],
     forbid: [], // regex cấm xuất hiện trong script sinh ra (vd locator ngoài page object)
     lint: null, // lệnh kiểm của dự án sau khi sinh (vd tsc --noEmit)
   },
@@ -88,6 +89,8 @@ const DEFAULTS = {
     history: "e2e/test-results/history.jsonl", // lịch sử kết quả từng lần chạy (kit flaky); CI giữ bằng cache
     keepHistory: 50,
     quarantine: "e2e/quarantine.yml", // test đang cách ly: [{ test, issue, until, reason }] — commit cùng repo
+    // Code dựng dữ liệu / fixture của dự án: test fail mà lỗi xảy ra ở đây → "lỗi dựng dữ liệu", tách khỏi lỗi feature
+    setupPaths: ["e2e/support/**"],
   },
   trigger: {
     codePaths: [],
@@ -101,7 +104,12 @@ const DEFAULTS = {
     requireScript: true,
     allowSelfApproval: true, // false: người viết / sửa TC không được tự duyệt (kit approve từ chối, gate báo)
   },
-  tracker: { adapter: "github", labels: ["bug", "e2e"] },
+  tracker: {
+    adapter: "github",
+    labels: ["bug", "e2e"],
+    // kit e2e --track: mỗi môi trường một issue theo dõi "E2E <env> đang đỏ" mang nhãn này ({env} = --env)
+    trackLabel: "e2e:{env}",
+  },
 };
 
 /** Khoá lồng nhau được trộn sâu một tầng nữa. */
