@@ -79,6 +79,22 @@ test("kit e2e: app không lên → env-down, không chạy lệnh test, thoát 1
   assert.equal(r.status, "passed");
 });
 
+test("kit e2e: output của step (GITHUB_OUTPUT) ghi cả khi không --publish (action publish: 'false')", async () => {
+  const cfg = await runProject(`echo '{"suites":[],"stats":{}}' > "$PLAYWRIGHT_JSON_OUTPUT_NAME"`);
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "kit-out-")), "output");
+  fs.writeFileSync(out, "");
+  const saved = process.env.GITHUB_OUTPUT;
+  process.env.GITHUB_OUTPUT = out;
+  try {
+    const r = await e2e(cfg, { scope: ["all"], baseUrl: await closedUrl(), log: () => {} });
+    assert.equal(r.status, "env-down");
+  } finally {
+    if (saved === undefined) delete process.env.GITHUB_OUTPUT;
+    else process.env.GITHUB_OUTPUT = saved;
+  }
+  assert.match(fs.readFileSync(out, "utf8"), /^status<<__TAF__\nenv-down\n__TAF__$/m);
+});
+
 test("lỗi dựng dữ liệu: test fail mà lỗi nằm trong run.setupPaths → setup, báo cáo tách mục riêng", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-setup-"));
   fs.cpSync(path.join(KIT, "cli/test/fixtures/repo-v1"), dir, { recursive: true });

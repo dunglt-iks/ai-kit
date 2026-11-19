@@ -118,11 +118,10 @@ export async function gatePr(cfg, o = {}) {
   if (error) g = { ...g, ok: false, error };
   log(gateText(g));
   if (error) log(`✘ ${error}`);
-  if (o.github) {
-    await publishGate(cfg, g, pr, log);
-    setOutput("features", features);
-    setOutput("ok", String(g.ok));
-  }
+  if (o.github) await publishGate(cfg, g, pr, log);
+  // output của step: luôn ghi (không phụ thuộc --publish); ngoài GitHub Actions không có GITHUB_OUTPUT → bỏ qua
+  setOutput("features", features);
+  setOutput("ok", String(g.ok));
   return { code: g.ok ? 0 : 1, features, gate: g };
 }
 
@@ -329,12 +328,11 @@ export async function e2e(cfg, o) {
         : !run || run.skipped
           ? "skipped"
           : "passed";
-  if (o.github) {
-    setOutput("features", features);
-    setOutput("gate", g ? String(g.ok) : "skipped");
-    setOutput("failed", String(report?.totals.failed ?? 0));
-    setOutput("status", status);
-  }
+  // output của step: luôn ghi (không phụ thuộc --publish) — job publish: 'false' vẫn đọc được status
+  setOutput("features", features);
+  setOutput("gate", g ? String(g.ok) : "skipped");
+  setOutput("failed", String(report?.totals.failed ?? 0));
+  setOutput("status", status);
   const code =
     failOn === "never" ? 0 : gateFail || (failOn === "test" && (testFail || envDown)) ? 1 : 0;
   return { code, status, features, gate: g, run, report };
