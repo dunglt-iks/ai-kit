@@ -183,10 +183,90 @@ remote thì trả lời không.
 
 ## Phần C (nâng cao) — CI
 
-Khi repo đã có workflow build + deploy dev: chép workflow mẫu một file ở [04 §4](04-ci-workflow.md) — PR chạy
-`actions/gate` (kiểm tuân thủ, không cần app), deploy dev xong / hằng đêm chạy `actions/e2e` vào địa chỉ đã deploy
-(chờ app, báo cáo, issue theo dõi "E2E `dev` đang đỏ"). Test fail trên dev: người trực chạy `/e2e-triage <run-id>` ở
-máy. `/kit-adopt` đề xuất sẵn tên workflow deploy và các biến cần khai.
+project1 có sẵn CI riêng (chưa dính kit): [`ci.yml`](../examples/project1/.github/workflows/ci.yml) — PR và push
+`main` chạy checks BE + FE; [`deploy-dev.yml`](../examples/project1/.github/workflows/deploy-dev.yml) — `ci` xanh trên
+`main` (merge PR) thì deploy lên máy dev bằng `docker compose -f compose.dev.yml` (runner tự host label `dev`, FE
+`:3100`). Nhúng kit thêm **một file** `ai-kit.yml` theo mẫu [04 §4](04-ci-workflow.md), không sửa hai file trên.
+
+### C1. Chuẩn bị (một lần)
+
+- Repo GitHub cho `~/demo/project1`: `gh repo create project1-demo --private --source . --push`.
+- Máy dev (Linux, có Docker; user chạy runner thuộc group `docker`): Settings → Actions → Runners → **New
+  self-hosted runner**, làm theo lệnh GitHub đưa, khi `config.sh` hỏi label thì thêm `dev`. Runner đăng ký theo repo:
+  máy đã có runner của repo khác thì cài thêm một runner ở thư mục khác. Cổng 3100 phải trống.
+
+### C2. Trước khi nhúng kit
+
+Push `main` (hoặc merge một PR): tab Actions thấy `ci` → `deploy-dev`; mở `http://<máy dev>:3100`. Đây là luồng gốc
+của dự án — chưa có gate, chưa có e2e sau deploy.
+
+### C3. Nhúng kit vào CI
+
+Sau Phần A, `/kit-adopt` đề xuất thêm workflow (chỉ đề xuất, không tự tạo). Đối chiếu đề xuất của AI với bản dưới —
+khác chỗ nào thì hỏi lại AI, sai thì sửa theo bản này — rồi lưu `.github/workflows/ai-kit.yml`, commit, push:
+
+```yaml
+name: ai-kit
+
+on:
+  pull_request:
+  workflow_run:
+    workflows: [deploy-dev]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write   # gate: comment PR, nhãn e2e-blocked
+  issues: write          # e2e: issue "E2E dev đang đỏ", đóng bug đã hết
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency: { group: "ai-kit-gate-${{ github.event.pull_request.number }}", cancel-in-progress: true }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dunglt-iks/ai-kit/actions/gate@v2
+
+  e2e:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: [self-hosted, dev]
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble          # đúng phiên bản @playwright/test
+      options: --add-host=host.docker.internal:host-gateway      # gọi cổng 3100 của máy dev
+    timeout-minutes: 30
+    concurrency: { group: ai-kit-e2e-dev, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}   # đúng commit vừa deploy
+      - run: npm ci --no-audit --no-fund
+      - uses: dunglt-iks/ai-kit/actions/e2e@v2
+        with:
+          base-url: http://host.docker.internal:3100
+          env: dev
+          close-fixed: 'true'
+      - name: Trả quyền thư mục làm việc cho user runner   # job container chạy root
+        if: always()
+        run: chown -R "$(stat -c %u:%g "$GITHUB_WORKSPACE/..")" "$GITHUB_WORKSPACE"
+```
+
+Khác mẫu 04 §4: job `e2e` chạy trên máy dev, trong container Playwright (có sẵn trình duyệt, không cần sudo); app và
+container test tách nhau, gọi qua `host.docker.internal`. Không có `schedule` (chỉ một môi trường dev).
+
+### C4. Thực hành
+
+1. **Sau deploy:** merge một PR → `ci` → `deploy-dev` → `ai-kit` / `e2e`. Xem step summary (báo cáo theo feature / TC),
+   artifact `e2e-results`.
+2. **E2E đỏ:** sửa lệch một thông báo lỗi của trang quên mật khẩu, merge → issue "🔴 E2E `dev` đang đỏ". Ở máy:
+   `/e2e-triage <run-id>`; sửa, merge → e2e xanh, issue tự đóng.
+3. **Gate xanh:** PR từ nhánh `feat/AUTH-F03-…` có commit mang mã → job `gate` xanh, comment PR.
+4. **Gate đỏ:** PR sửa `be/` không khai mã; hoặc sửa TC đã duyệt mà không `kit approve --testcase` → gate đỏ, comment chỉ
+   lệnh cần chạy, nhãn `e2e-blocked`.
 
 ## Dọn dẹp, làm lại
 
