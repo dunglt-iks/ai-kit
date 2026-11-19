@@ -22,8 +22,12 @@ viết test e2e của dự án).
    cấu hình test); hỏi địa chỉ nếu `stack.env` không ghi. Được đồng ý: `kit e2e <mã…> --no-gate --base-url <địa chỉ>`
    (in bảng kết quả theo feature).
    Test fail:
-   - **Script / page object sai** (locator, chờ, dựng dữ liệu) → sửa theo `prompts/script.md`, chạy lại, tối đa 2 vòng.
+   - **Script / page object / fixture sai** (locator, chờ, dựng dữ liệu) → sửa theo `prompts/script.md`, chạy lại, tối
+     đa 2 vòng. Báo cáo ghi **lỗi dựng dữ liệu** (lỗi trong fixture) → feature chưa được kiểm: sửa fixture hoặc môi
+     trường (vd BE chưa bật API test), không kết luận lỗi app.
    - **App làm khác test case** → **không** sửa script cho khớp app; ghi vào báo cáo là lỗi nghi do code (kèm mã TC),
      gợi ý `/dev` để sửa code, hoặc đánh dấu lỗi đã biết theo `scripts.guide` nếu người dùng chọn để lại.
-4. **Báo lại:** file đã tạo/sửa, kết quả các lệnh kiểm, kết quả chạy (pass / fail / lỗi đã biết), việc còn lại.
+4. **Báo lại:** file đã tạo/sửa (nêu riêng fixture mới / đã sửa và API nó gọi — người duyệt cùng script), kết quả các
+   lệnh kiểm, kết quả chạy (pass / fail / lỗi dựng dữ liệu / lỗi đã biết), việc còn lại. Không có API để dựng dữ liệu
+   TC cần → nêu các lựa chọn (thêm API test qua `/dev`, dựng qua giao diện, dữ liệu có sẵn) để người dùng chọn.
    Không commit khi người dùng chưa xác nhận.

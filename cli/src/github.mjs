@@ -92,3 +92,33 @@ export async function setLabel(number, label, on, color = "d93f0b") {
     `/repos/${repo()}/issues/${number}/labels/${encodeURIComponent(label)}`,
   );
 }
+
+/** Issue đang mở có nhãn `label` và chứa `marker` trong thân (null nếu không có). */
+export async function findOpenIssue(label, marker) {
+  for (let page = 1; page < 10; page++) {
+    const list = await api(
+      "GET",
+      `/repos/${repo()}/issues?state=open&per_page=100&page=${page}&labels=${encodeURIComponent(label)}`,
+    );
+    const found = list.find((i) => !i.pull_request && i.body?.includes(marker));
+    if (found) return { id: found.number, title: found.title, body: found.body || "", url: found.html_url };
+    if (list.length < 100) break;
+  }
+  return null;
+}
+
+export async function ensureLabel(name, color = "b60205") {
+  try {
+    await api("POST", `/repos/${repo()}/labels`, { name, color });
+  } catch {
+    /* nhãn đã có */
+  }
+}
+
+export async function createIssue({ title, body, labels }) {
+  const i = await api("POST", `/repos/${repo()}/issues`, { title, body, labels });
+  return { id: i.number, url: i.html_url };
+}
+
+export const updateIssue = (id, fields) => api("PATCH", `/repos/${repo()}/issues/${id}`, fields);
+export const commentIssue = (id, body) => api("POST", `/repos/${repo()}/issues/${id}/comments`, { body });

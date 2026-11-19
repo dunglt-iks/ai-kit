@@ -12,7 +12,8 @@ gốc repo này.
 | `kit doctor`, `kit context`, `kit next-code` | Kiểm việc nhúng; ngữ cảnh cho AI; cấp mã | [11 §4](../docs/11-cau-hinh.md) |
 | `kit approve`, `kit ready` | Người duyệt spec / prototype / test case (ghi người, ngày); cổng trước TC / script / code | [10 §3.1](../docs/10-quy-trinh.md) |
 | `kit check-prototype` | Đối chiếu spec ↔ prototype (màn hình, thành phần) | [10 §3.2](../docs/10-quy-trinh.md) |
-| `kit e2e` | **Điểm cắm CI** và chạy e2e ở máy: phạm vi (none / changed / all / mã) → gate → chạy `run.command` → báo cáo | [04](../docs/04-ci-workflow.md) |
+| `kit gate --pr` | **Điểm cắm CI cho PR**: mã feature của PR → gate → comment, nhãn chặn; không chạy test | [04](../docs/04-ci-workflow.md) |
+| `kit e2e` | **Điểm cắm CI sau deploy** và chạy e2e ở máy: phạm vi (changed / all / mã) → (gate) → chờ app → chạy `run.command` → báo cáo → issue theo dõi (`--track`) | [04](../docs/04-ci-workflow.md) |
 | `kit spec <mã>` | In luồng/nhánh/màn hình cần phủ, trạng thái duyệt, specHash (`--json` cho prompt) | [02 §4](../docs/02-testcase-format.md) |
 | `kit gate` | Kiểm TC: có, đã duyệt, phủ đủ US/A/E/SCR, `specHash` khớp; script có và khớp TC | [02 §3–4](../docs/02-testcase-format.md) |
 | `kit lint-tc` | Kiểm cú pháp TC markdown | [02 §2](../docs/02-testcase-format.md) |
@@ -31,7 +32,9 @@ gốc repo này.
 | `src/config.mjs` | Đọc `ai-kit.yml` (hoặc `taf.config.yml` 1.x, chuyển sang v2), giá trị mặc định, nạp adapter (`loadProject`) |
 | `src/codes.mjs` | Tìm mã trong văn bản (mẫu mã lấy từ spec adapter), luật chuẩn hoá |
 | `src/labels.mjs` | Bộ nhãn TC `vi` / `en` |
-| `src/e2e.mjs` | `kit e2e`: chọn phạm vi, gate, chạy, báo cáo, comment PR |
+| `src/e2e.mjs` | `kit e2e`: chọn phạm vi, gate, chờ app, chạy, báo cáo, comment PR; `gatePr` (`kit gate --pr`) |
+| `src/wait.mjs` | Chờ địa chỉ app trả lời (mã < 500) trước khi chạy |
+| `src/track.mjs` | Issue theo dõi môi trường: mở / cập nhật / đóng (`kit e2e --track`) |
 | `src/detect.mjs` | Lấy mã feature của PR (tiêu đề, nhánh, tiêu đề commit, diff status file) |
 | `src/run.mjs` | Chạy `run.command` cho các script được chọn, gộp kết quả chạy lại |
 | `src/report.mjs`, `src/bugs.mjs` | Báo cáo, `file-bugs` |

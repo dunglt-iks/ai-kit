@@ -1,0 +1,52 @@
+name: ai-kit gate
+description: >-
+  Kiểm tuân thủ của PR, không chạy test, không cần app. Lấy mã feature của PR (tiêu đề, nhánh, commit) — PR sửa code
+  mà không khai mã thì đỏ — rồi kiểm từng feature: spec đã duyệt, test case đã duyệt và còn khớp spec, phủ đủ, script e2e
+  có và khớp test case. Comment PR, nhãn chặn. Không gọi AI. Cần actions/checkout với fetch-depth 0.
+inputs:
+  features:
+    description: Mã feature cách nhau bằng dấu cách. Trống = lấy từ PR
+    default: ''
+  publish:
+    description: '"true" = comment PR, nhãn chặn, step summary'
+    default: 'true'
+  fail:
+    description: '"true" = bước này đỏ khi gate không qua (đặt làm required check được). "false" = chỉ báo'
+    default: 'true'
+  root:
+    description: Thư mục dự án (nơi có ai-kit.yml), tính từ gốc repo
+    default: .
+outputs:
+  features:
+    description: Mảng JSON mã feature của PR
+    value: ${{ steps.gate.outputs.features }}
+  ok:
+    description: 'true | false'
+    value: ${{ steps.gate.outputs.ok }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Cài ai-kit
+      shell: bash
+      run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../.."
+    - name: kit gate --pr
+      id: gate
+      shell: bash
+      working-directory: ${{ inputs.root }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        FEATURES: ${{ inputs.features }}
+        PUBLISH: ${{ inputs.publish }}
+        FAIL: ${{ inputs.fail }}
+      run: |
+        read -r -a codes <<< "$FEATURES"
+        args=(gate --pr "${codes[@]}")
+        [ "$PUBLISH" = "true" ] && args+=(--publish github)
+        code=0
+        node "$GITHUB_ACTION_PATH/../../cli/bin/kit.mjs" "${args[@]}" || code=$?
+        # 1 = gate không qua; khác (2…) = lỗi chạy kit (cấu hình, git) — luôn đỏ
+        [ "$code" = "1" ] && [ "$FAIL" != "true" ] && code=0
+        exit "$code"

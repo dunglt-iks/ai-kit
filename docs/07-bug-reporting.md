@@ -3,8 +3,8 @@
 ## 1. Luồng sau khi chạy
 
 ```
-CI: kit e2e (JSON report, artifact) → bảng theo feature, comment PR, đóng bug đã hết (--close-fixed)
-        test fail chưa phân loại: không ghi bug, comment nhắc /e2e-triage
+CI: kit e2e (JSON report, artifact) → bảng theo feature, step summary, issue theo dõi môi trường (--track),
+        đóng bug đã hết (--close-fixed). Test fail chưa phân loại: không ghi bug, nhắc /e2e-triage <run-id>
 Máy: /e2e-triage [run-id CI]
   └─ lấy report (ở máy, hoặc gh run download từ CI) → Claude triage (prompts/triage.md) → triage.json
        └─ lỗi script: sửa, chạy lại (kit e2e <mã> --merge), tối đa 2 vòng — chỉ khi truy cập được app từ máy
@@ -24,11 +24,18 @@ tải về bằng `gh run download`, chép `results.json` vào `run.report` (m�
 |---|---|---|
 | `app-bug` | App khác kết quả mong đợi của TC, TC đúng spec | Ghi issue |
 | `script-bug` | Locator sai, thiếu chờ, dựng dữ liệu sai | Sửa script / page object, chạy lại; người dùng commit bản sửa |
-| `env` | App không lên, mạng, môi trường bẩn | Không ghi bug |
+| `env` | App không lên, mạng, môi trường bẩn; **lỗi dựng dữ liệu** do môi trường (API test chưa bật, persona chưa có trên môi trường) | Không ghi bug; báo người lo môi trường |
 | `flaky` | Lúc pass lúc fail | Không ghi bug; báo cáo liệt kê test flaky (Playwright retry) |
 | `tc-wrong` | TC mâu thuẫn spec | Không ghi bug. Báo cáo có mục **Test case cần xem lại** (mã TC, vì sao, bước làm: `/testcase` → `kit approve --testcase` → `/e2e-script` → `kit e2e`). AI không tự sửa TC |
 
 Nguyên tắc: **triage không sửa code ứng dụng, không sửa script cho khớp app sai.**
+
+**Lỗi dựng dữ liệu.** Test fail mà vị trí lỗi (Playwright ghi trong JSON report) nằm trong `run.setupPaths` (mặc định
+`e2e/support/**` — fixture, dựng dữ liệu) được kit đánh dấu **lỗi dựng dữ liệu**, tất định, trước khi AI phân loại:
+báo cáo tách thành mục riêng, issue theo dõi môi trường cũng vậy. Feature đang test chưa được kiểm, nên không kết luận
+`app-bug` cho feature đó. Thường là `env` (môi trường thiếu cấu hình) hoặc `script-bug` (fixture sai); API dựng dữ liệu
+của app trả sai thì lỗi thuộc chính API đó — có TC tầng `api` của nó thì ghi bug theo TC ấy. Triage **không tự sửa
+fixture**: `kit check-paths --triage` bắt file `run.setupPaths` bị đổi; AI dừng, nêu lý do, người đồng ý mới sửa ([03 §5](03-script-generation.md)).
 
 `triage.json` (cạnh `run.report`): `[{ "test": "<tên test>", "fingerprint": "<của lỗi đó>", "class": "app-bug",
 "summary": "…", "fixed": false }]` — `fixed`: script đã sửa và chạy lại pass. Mục có `fingerprint` chỉ áp cho đúng lỗi đó
@@ -74,6 +81,11 @@ Lưu ý: bộ lọc nhãn của GitHub cập nhật chậm vài giây sau khi t�
 
 `--close-fixed` nên bật ở run hồi quy trên nhánh phát triển (sau CD, hằng đêm), không bật ở PR (nhánh PR chưa phải code chung).
 
+**Issue theo dõi môi trường** (`kit e2e --track`, action `e2e` bật sẵn khi không phải sự kiện PR) khác issue bug: mỗi
+môi trường tối đa một issue đang mở "🔴 E2E `<env>` đang đỏ", nhãn `tracker.trackLabel` (mặc định `e2e:{env}`), tự mở /
+cập nhật / đóng theo từng lần chạy đầy đủ — xem [04 §5](04-ci-workflow.md). Bug từng lỗi vẫn ghi theo fingerprint như
+trên, sau khi người phân loại.
+
 ## 4. Báo cáo
 
 `kit report` (comment PR chỉ một, sửa lại mỗi lần chạy):
@@ -110,7 +122,7 @@ Mỗi lần `kit e2e` / `kit report` ghi hai thứ:
 
 - **Cho người đọc:** `run.reportsDir/latest.md` (mặc định `e2e/test-results/reports/`) và một bản theo lần chạy
   `<YYYY-MM-DD-HHmm>-<env>.md` (giữ `run.keepReports` bản gần nhất, mặc định 20). Nội dung như comment PR: bảng theo
-  feature, test fail kèm mã TC, **bước fail** (tên `test.step`), lỗi rút gọn, đường dẫn ảnh / trace để mở ngay, loại
+  feature, test fail kèm mã TC, **bước fail** (tên `test.step`), mục **lỗi dựng dữ liệu** riêng, lỗi rút gọn, đường dẫn ảnh / trace để mở ngay, loại
   lỗi sau `/e2e-triage`, dữ liệu test dọn lỗi (annotation `cleanup`). Trên CI nằm trong artifact.
 - **Cho máy:** `result.json` cạnh `run.report` (mặc định `e2e/test-results/raw/`): tổng, theo feature, danh sách lỗi
   (fingerprint, triage), lỗi đã biết (`known`), test flaky, từng test, bug đã ghi.

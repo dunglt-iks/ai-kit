@@ -43,6 +43,8 @@ Kit tìm cấu hình theo thứ tự `ai-kit.yml`, `e2e/taf.config.yml`, `taf.co
 | `run.smokePriority` | `P1` | Phạm vi `changed` chạy thêm TC có ưu tiên này của các feature khác (`null` = tắt) |
 | `run.history`, `run.keepHistory` | `e2e/test-results/history.jsonl`, `50` | Lịch sử kết quả cho `kit flaky` |
 | `run.quarantine` | `e2e/quarantine.yml` | Test đang cách ly `[{ test, issue, until, reason }]` ([07 §2b](07-bug-reporting.md)) |
+| `run.setupPaths` | `[e2e/support/**]` | Code dựng dữ liệu / fixture: test fail mà lỗi nằm ở đây → **lỗi dựng dữ liệu**, báo riêng ([06](06-test-data.md)); `check-script` gợi ý dựng dữ liệu qua đây |
+| `tracker.trackLabel` | `e2e:{env}` | Nhãn issue theo dõi môi trường của `kit e2e --track` ([04 §5](04-ci-workflow.md)) |
 | `trigger.featureMap` | `{}` | `{ "<glob file code>": [<mã feature>…] }` — file code đổi kéo thêm feature vào phạm vi `changed` |
 | `gate.allowSelfApproval` | `true` | `false`: người viết / sửa TC không được tự duyệt (`kit approve --testcase` từ chối, gate báo); `true` chỉ cảnh báo |
 | `run.cwd`, `run.report` | `.`, `e2e/test-results/raw/results.json` | Thư mục chạy lệnh; JSON report (cạnh nó: `result.json`, `triage.json`) |
@@ -78,5 +80,6 @@ Kit tìm cấu hình theo thứ tự `ai-kit.yml`, `e2e/taf.config.yml`, `taf.co
 | `kit check-prototype <mã…> [--json]` | Đối chiếu spec ↔ prototype: mỗi `SCR` có `<section id>`, mỗi thành phần đánh số có `data-ref`, không màn hình / thành phần lạ; phiên bản spec trên thanh PROTOTYPE. Thoát 1 nếu lệch |
 | `kit ready <mã…> [--json]` | Đủ điều kiện viết TC / script / code chưa: spec + prototype đã duyệt, prototype còn khớp màn hình, mã không trùng. Thoát 1 nếu chưa |
 | `kit next-code <cha> [--type F\|US\|SCR\|BR\|small]` | Mã kế tiếp, tính cả mã `[DEPRECATED]`. `F`, `BR`: cha là module (`DM`); `US`, `SCR`: cha là feature (`DM-F01`) |
-| `kit e2e <phạm vi> […]` | Điểm cắm CI và chạy e2e ở máy ([04 §2](04-ci-workflow.md)) |
+| `kit gate --pr [--publish github]` | Điểm cắm CI cho PR: kiểm tuân thủ (mã feature, spec / TC đã duyệt, script khớp TC), không chạy test ([04 §2](04-ci-workflow.md)) |
+| `kit e2e all \| changed \| <mã…> […]` | Điểm cắm CI sau deploy / hằng đêm và chạy e2e ở máy: chờ app, chạy, báo cáo, issue theo dõi (`--track`) ([04 §2](04-ci-workflow.md)) |
 | `kit spec`, `lint-tc`, `gate`, `plan-gen`, `check-script`, `check-paths`, `lint-script`, `rehash`, `report`, `file-bugs` | Lệnh TAF ([01 §5](01-architecture.md)) |

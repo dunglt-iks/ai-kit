@@ -17,7 +17,7 @@ Chuẩn bị đưa nhánh hiện tại lên PR.
    - **E2E (TAF):** `kit e2e changed --base-url <địa chỉ app ở máy>` — lấy mã feature của nhánh (tên nhánh,
      commit), gate (TC + script) rồi chạy script của các feature đó. Gate phải xanh (CI cũng gate, đỏ thì PR bị chặn):
      thiếu / lỗi thời TC → `/testcase <mã>` và người duyệt (`kit approve <mã> --testcase`); thiếu / lệch script →
-     `/e2e-script <mã>`. App chưa bật được ở máy (`stack.env`) → `kit e2e none` (chỉ gate), nói rõ phần chạy để CI. Test fail → `/e2e-triage` để phân loại: app làm khác test case → sửa code, không sửa test; lỗi để lại → hỏi người dùng có đánh dấu lỗi đã biết kèm issue không (`scripts.guide`).
+     `/e2e-script <mã>`. App chưa bật được ở máy (`stack.env`) → `kit gate --pr` (chỉ kiểm tuân thủ, không chạy), nói rõ e2e sẽ chạy trên dev sau deploy. Test fail → `/e2e-triage` để phân loại: app làm khác test case → sửa code, không sửa test; lỗi để lại → hỏi người dùng có đánh dấu lỗi đã biết kèm issue không (`scripts.guide`).
 4. **Tài liệu:** diff đụng tài liệu spec (`spec.roots`) → xác nhận đã bump version + Change Log (RULES §2.3).
    Việc làm thay đổi tiến độ → xác nhận `progress.file` đã cập nhật.
 5. **Mô tả PR:**

@@ -40,7 +40,7 @@ trùng tên đã có trong repo. Không tự chọn bên nào.
 ## Bước 4 — Trình bày → ⏸ DỪNG
 
 Trình bày: bản `ai-kit.yml` đề xuất (dạng diff so với file hiện tại), bảng mâu thuẫn, và — nếu repo có CI GitHub —
-gợi ý chỗ cắm bước `uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>` vào workflow sẵn có (sau bước dựng app; theo
-docs/04 của kit), không tự sửa workflow. Chờ người dùng duyệt từng phần; được duyệt mới ghi `ai-kit.yml`. Thay đổi
+gợi ý thêm workflow mẫu của docs/04 §4 (PR → `actions/gate`; sau workflow deploy sẵn có / hằng đêm → `actions/e2e`
+vào địa chỉ đã deploy), điền sẵn tên workflow deploy và các biến cần khai — chỉ đề xuất, không tự tạo hay sửa workflow. Chờ người dùng duyệt từng phần; được duyệt mới ghi `ai-kit.yml`. Thay đổi
 file hướng dẫn của repo (ngoài khối `ai-kit:start/end`) chỉ làm khi người dùng yêu cầu rõ. Cuối cùng chạy lại
 `kit init` (tự kiểm), báo kết quả và đề xuất commit (hỏi trước).

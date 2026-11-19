@@ -1,8 +1,9 @@
 // @ts-check
-// kit e2e: điểm cắm của ai-kit vào CI của dự án (và lệnh chạy e2e ở máy). Dự án dựng app trước, rồi gọi:
-//   kit e2e none | changed | all | <mã|tên script>…  [--base-url] [--env] [--grep] [--gate|--no-gate]
-//                                                    [--close-fixed] [--publish github] [--merge] [--fail-on]
-// Thứ tự: chọn feature → gate (TC + script) → chạy run.command → báo cáo (→ comment PR, đóng bug đã hết).
+// kit e2e: chạy e2e vào app dự án đã dựng (CI sau deploy, hằng đêm, hoặc ở máy):
+//   kit e2e changed | all | <mã|tên script>…  [--base-url] [--env] [--grep] [--gate|--no-gate] [--wait <giây>|--no-wait]
+//                                              [--close-fixed] [--track] [--publish github] [--merge] [--fail-on]
+// Thứ tự: chọn feature → gate (TC + script, tuỳ chọn) → chờ app → chạy run.command → báo cáo (→ comment PR, issue theo
+// dõi môi trường, đóng bug đã hết). Kiểm tuân thủ của PR (không chạy test) là lệnh riêng: kit gate --pr (gatePr).
 // CI không ghi bug mới: test fail chưa phân loại chỉ được báo; phân loại + ghi bug ở máy (/e2e-triage).
 // Xem docs/04-ci-workflow.md.
 import { execFileSync } from "node:child_process";
@@ -25,11 +26,13 @@ import {
   writeHumanReport,
 } from "./report.mjs";
 import { appendHistory, applyQuarantine } from "./history.mjs";
+import { syncTrack } from "./track.mjs";
+import { waitForApp } from "./wait.mjs";
 import { runTests, scriptFiles, smokeFiles } from "./run.mjs";
 import { listScripts } from "./scripts.mjs";
 import { parseTestcase, testcasePath } from "./testcase.mjs";
 
-export const SCOPES = ["none", "changed", "all"];
+export const SCOPES = ["changed", "all"];
 export const FAIL_ON = ["gate", "test", "never"];
 
 /** Đăng lên GitHub (comment, nhãn): lỗi (vd PR từ fork, token chỉ đọc) chỉ cảnh báo, không dừng việc chạy test. */
@@ -82,6 +85,55 @@ export function priorityTests(cfg, exclude, prio) {
   return { ids, files };
 }
 
+/** Comment gate + nhãn chặn lên PR, step summary. Lỗi đăng chỉ cảnh báo. */
+async function publishGate(cfg, g, pr, log) {
+  const md = gateMarkdown(g, cfg.gate.blockedLabel) + (g.error ? `\n✘ ${g.error}\n` : "");
+  addSummary(md);
+  if (!pr?.number) return;
+  await publish(log, "comment gate", () => upsertComment(pr.number, GATE_MARKER, md));
+  await publish(log, "gắn nhãn", () => setLabel(pr.number, cfg.gate.blockedLabel, !g.ok));
+}
+
+/**
+ * kit gate --pr: kiểm tuân thủ của PR, không chạy test, không cần app. Lấy mã feature của PR (tiêu đề, nhánh, commit,
+ * status file, trigger.featureMap) → PR sửa code mà không khai mã thì đỏ → gate từng feature (spec / TC đã duyệt, phủ
+ * đủ, script khớp TC) → comment PR + nhãn chặn (--publish github).
+ * @param {any} cfg
+ * @param {{ codes?: string[], github?: boolean, base?: string, title?: string, log?: (m: string) => void }} o
+ * @returns {Promise<{ code: number, features: string[], gate: any }>}
+ */
+export async function gatePr(cfg, o = {}) {
+  const log = o.log || console.log;
+  let features = (o.codes || []).map((c) => c.toUpperCase());
+  let error = null;
+  const pr = o.github && process.env.GITHUB_EVENT_NAME?.startsWith("pull_request") ? prFromEvent() : prContext(cfg, o);
+  if (!features.length) {
+    const d = detect(cfg, pr);
+    features = d.features;
+    error = d.error || null;
+    log(`Feature của PR: ${features.join(", ") || "(không có)"}`);
+    if (d.unknown?.length) log(`⚠ Mã không có trong spec (bỏ qua): ${d.unknown.join(", ")}`);
+  }
+  let g = features.length ? gate(cfg, features) : { ok: true, results: [] };
+  if (error) g = { ...g, ok: false, error };
+  log(gateText(g));
+  if (error) log(`✘ ${error}`);
+  if (o.github) await publishGate(cfg, g, pr, log);
+  // output của step: luôn ghi (không phụ thuộc --publish); ngoài GitHub Actions không có GITHUB_OUTPUT → bỏ qua
+  setOutput("features", features);
+  setOutput("ok", String(g.ok));
+  return { code: g.ok ? 0 : 1, features, gate: g };
+}
+
+/** Commit đang checkout (đúng bản đã deploy khi workflow checkout theo commit đó); không có git thì GITHUB_SHA. */
+function headCommit(cfg) {
+  try {
+    return git(cfg, ["rev-parse", "HEAD"]);
+  } catch {
+    return process.env.GITHUB_SHA || undefined;
+  }
+}
+
 /** "DM-F01", "dm-f01", "DM-F01.spec.mjs", "e2e/scripts/DM-F01.spec.mjs" → "DM-F01". */
 export function featureOf(cfg, name) {
   const base = path.basename(name);
@@ -92,24 +144,31 @@ export function featureOf(cfg, name) {
 /**
  * @param {any} cfg
  * @param {{ scope: string[], baseUrl?: string, env?: string, grep?: string, gate?: boolean, closeFixed?: boolean,
- *   github?: boolean, merge?: boolean, failOn?: string, base?: string, title?: string, log?: (m: string) => void }} o
- * @returns {Promise<{ code: number, features: string[], gate: any, run: any, report: any }>}
+ *   github?: boolean, merge?: boolean, failOn?: string, base?: string, title?: string, shard?: string,
+ *   wait?: number | false, waitUrl?: string, track?: boolean, log?: (m: string) => void }} o
+ *   wait: số giây chờ app (mặc định 0 = thử một lần khi có địa chỉ); false = không kiểm
+ * @returns {Promise<{ code: number, status: 'passed'|'failed'|'gate-failed'|'env-down'|'skipped', features: string[],
+ *   gate: any, run: any, report: any }>}
  */
 export async function e2e(cfg, o) {
   const log = o.log || console.log;
   const failOn = o.failOn || "test";
   if (!FAIL_ON.includes(failOn)) throw new TafError(`--fail-on phải là ${FAIL_ON.join(" | ")}`);
   const scope = o.scope.length ? o.scope : ["changed"];
+  if (scope[0] === "none")
+    throw new TafError('Phạm vi "none" đã bỏ — chỉ kiểm tuân thủ của PR (không chạy test) thì dùng: kit gate --pr (action actions/gate)');
   const mode = SCOPES.includes(scope[0]) ? scope[0] : "list";
   if (mode !== "list" && scope.length > 1)
-    throw new TafError(`"${scope[0]}" không đi kèm mã khác — dùng: none | changed | all | <mã|tên script>…`);
+    throw new TafError(`"${scope[0]}" không đi kèm mã khác — dùng: changed | all | <mã|tên script>…`);
+  if (o.track && (!o.env || o.env === "local"))
+    throw new TafError("--track cần --env <tên môi trường> (dev, staging…) — mỗi môi trường một issue theo dõi");
 
   // 1. Feature trong phạm vi
   let features = [];
   let detectError = null;
   // Chạy trong sự kiện PR thì comment / nhãn đi vào PR, với mọi phạm vi
   let pr = o.github && process.env.GITHUB_EVENT_NAME?.startsWith("pull_request") ? prFromEvent() : null;
-  if (mode === "none" || mode === "changed") {
+  if (mode === "changed") {
     pr = pr || prContext(cfg, o);
     const d = detect(cfg, pr);
     features = d.features;
@@ -127,22 +186,26 @@ export async function e2e(cfg, o) {
     if (detectError) g = { ...g, ok: false, error: detectError };
     log(gateText(g));
     if (detectError) log(`✘ ${detectError}`);
-    if (o.github) {
-      const md = gateMarkdown(g, cfg.gate.blockedLabel) + (detectError ? `\n✘ ${detectError}\n` : "");
-      addSummary(md);
-      if (pr?.number) {
-        await publish(log, "comment gate", () => upsertComment(pr.number, GATE_MARKER, md));
-        await publish(log, "gắn nhãn", () => setLabel(pr.number, cfg.gate.blockedLabel, !g.ok));
-      }
-    }
+    if (o.github) await publishGate(cfg, g, pr, log);
   } else if (o.github && pr?.number && doGate) {
     await publish(log, "gỡ nhãn", () => setLabel(pr.number, cfg.gate.blockedLabel, false));
   }
 
-  // 3. Chạy
+  // 3. Chờ app (gọi thẳng địa chỉ app, app không cần endpoint health), rồi chạy
   let run = null;
   let report = null;
-  if (mode !== "none") {
+  let envDown = null;
+  const waitUrl = o.waitUrl || o.baseUrl;
+  if (o.wait !== false && waitUrl) {
+    const w = await waitForApp(waitUrl, { timeoutSec: o.wait || 0, log });
+    if (!w.ok) {
+      envDown = w;
+      const msg = `Môi trường không lên: ${waitUrl} không trả lời (${w.error || "không rõ"}) sau ${Math.round(w.waitedMs / 1000)} giây — không chạy test, không tính là test fail. Kiểm deploy / địa chỉ app${o.wait ? "" : "; ở CI đặt thời gian chờ (--wait <giây>, input wait-timeout)"}.`;
+      log(`✘ ${msg}`);
+      if (o.github) addSummary(`## E2E-TAF · ⚠ Môi trường \`${o.env || "local"}\` không lên\n\n${msg}\n`);
+    } else if (w.waitedMs > 1000) log(`App đã lên sau ${Math.round(w.waitedMs / 1000)} giây`);
+  }
+  if (!envDown) {
     // Feature [DEPRECATED]: gate bỏ qua, không chạy script của nó
     const live = features.filter((f) => {
       const dep = cfg.adapter.findFeature(f)?.deprecated;
@@ -244,12 +307,33 @@ export async function e2e(cfg, o) {
     log(`✘ ${u.feature}: TC đã duyệt chưa có test thực sự chạy (thiếu, bị comment hoặc skip): ${u.tcs.join(", ")}`);
   if (run && !run.skipped && run.code !== 0 && report && !report.totals.tests)
     log(`✘ Lệnh test thoát mã ${run.code} mà không có test nào chạy — app đã dựng chưa (${o.baseUrl || "chưa truyền --base-url"}), globalSetup có lỗi?`);
-  if (o.github) {
-    setOutput("features", features);
-    setOutput("gate", g ? String(g.ok) : "skipped");
-    setOutput("failed", String(report?.totals.failed ?? 0));
+  // Issue theo dõi của môi trường: cập nhật theo lần chạy đầy đủ (không --grep / --shard / --merge); môi trường không
+  // lên thì không đụng (không biết test đúng sai)
+  if (o.track && !envDown && run && !run.skipped) {
+    if (o.grep || o.shard || o.merge) log("⚠ Bỏ qua --track: chạy một phần (--grep / --shard / --merge) không đủ căn cứ để mở / đóng issue theo dõi");
+    else {
+      const note =
+        run.code !== 0 && report && !report.totals.tests ? `Lệnh test thoát mã ${run.code} mà không có test nào chạy (globalSetup lỗi?)` : undefined;
+      await publish(log, "cập nhật issue theo dõi", () =>
+        syncTrack(cfg, { env: /** @type {string} */ (o.env), red: testFail, report, note, commit: headCommit(cfg), log }),
+      );
+    }
   }
+  const status = envDown
+    ? "env-down"
+    : gateFail
+      ? "gate-failed"
+      : testFail
+        ? "failed"
+        : !run || run.skipped
+          ? "skipped"
+          : "passed";
+  // output của step: luôn ghi (không phụ thuộc --publish) — job publish: 'false' vẫn đọc được status
+  setOutput("features", features);
+  setOutput("gate", g ? String(g.ok) : "skipped");
+  setOutput("failed", String(report?.totals.failed ?? 0));
+  setOutput("status", status);
   const code =
-    failOn === "never" ? 0 : gateFail || (failOn === "test" && testFail) ? 1 : 0;
-  return { code, features, gate: g, run, report };
+    failOn === "never" ? 0 : gateFail || (failOn === "test" && (testFail || envDown)) ? 1 : 0;
+  return { code, status, features, gate: g, run, report };
 }

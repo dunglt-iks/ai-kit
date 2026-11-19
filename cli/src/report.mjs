@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { extractFeatures, extractTraces } from "./codes.mjs";
 import { rel, TafError } from "./config.mjs";
+import { matchesAny } from "./detect.mjs";
 import { gateFeature } from "./gate.mjs";
 import { parseTestcase, testcasePath } from "./testcase.mjs";
 
@@ -99,6 +100,8 @@ export function flattenResults(json) {
           cleanup: [...new Set(cleanup)],
           // bước (test.step) đang chạy khi fail — script đặt tên bước theo bước của TC
           step: (last?.steps || []).find((x) => x.error)?.title || null,
+          // file nơi lỗi xảy ra (Playwright ghi vị trí trong code của dự án) — để tách lỗi dựng dữ liệu (fixture)
+          errorFile: last?.error?.location?.file || last?.errors?.find((e) => e.location)?.location?.file || null,
           attachments: (last?.attachments || []).map((a) => ({
             name: a.name,
             path: a.path,
@@ -118,6 +121,16 @@ export function loadResults(file) {
 }
 
 /**
+ * Lỗi xảy ra trong code dựng dữ liệu / fixture của dự án (run.setupPaths, mặc định e2e/support/**), không phải trong
+ * bước kiểm của test → "lỗi dựng dữ liệu": feature đang test chưa được kiểm, không kết luận feature hỏng.
+ */
+export function isSetupError(cfg, file) {
+  if (!file || !(cfg.run.setupPaths || []).length) return false;
+  const r = path.isAbsolute(file) ? path.relative(cfg.root, file).split(path.sep).join("/") : file;
+  return matchesAny(r, cfg.run.setupPaths);
+}
+
+/**
  * @param {any} cfg
  * @param {{ results: any, features?: string[], env?: string }} o
  */
@@ -130,6 +143,7 @@ export function buildReport(cfg, o) {
       ...t,
       tc,
       feature,
+      setup: t.outcome === "failed" && isSetupError(cfg, t.errorFile),
       generated: Boolean(m),
       traces: m ? [] : extractTraces(cfg, t.title),
       fingerprint:
@@ -197,6 +211,7 @@ export function buildReport(cfg, o) {
       tests: tests.length,
       passed: tests.filter((t) => t.outcome === "passed").length,
       failed: tests.filter((t) => t.outcome === "failed").length,
+      setup: tests.filter((t) => t.setup).length,
       flaky: tests.filter((t) => t.outcome === "flaky").length,
       skipped: tests.filter((t) => t.outcome === "skipped").length,
       known: tests.filter((t) => t.outcome === "known").length,
@@ -218,8 +233,10 @@ export function buildReport(cfg, o) {
           attachments,
           knownFixed,
           step,
+          setup,
         }) => ({
           step,
+          ...(setup ? { setup: true } : {}),
           title,
           file,
           line,
@@ -263,9 +280,10 @@ const pct = (a, b) => (b ? `${a}/${b}` : "—");
 export function reportMarkdown(report, extra = {}) {
   const t = report.totals;
   const known = t.known ? ` · ${t.known} lỗi đã biết` : "";
+  const setupN = report.failures.filter((f) => f.setup).length;
   const head =
     t.failed > 0 || report.unverified?.length
-      ? `## E2E-TAF · ✘ ${t.failed} test fail${report.unverified?.length ? ` · ${report.unverified.length} feature có TC chưa chạy` : ""} · ${t.passed}/${t.tests} pass${known}`
+      ? `## E2E-TAF · ✘ ${t.failed} test fail${setupN ? ` (${setupN} lỗi dựng dữ liệu)` : ""}${report.unverified?.length ? ` · ${report.unverified.length} feature có TC chưa chạy` : ""} · ${t.passed}/${t.tests} pass${known}`
       : `## E2E-TAF · ✓ ${t.passed}/${t.tests} pass${known}`;
   const lines = [REPORT_MARKER, head, ""];
   if (report.env)
@@ -289,14 +307,24 @@ export function reportMarkdown(report, extra = {}) {
       `| ${r.feature}${r.name ? ` ${r.name}` : ""} | ${r.coverage ? pct(r.coverage.covered, r.coverage.required) : "—"} | ${r.testcases ? pct(r.testcases.withTest, r.testcases.total) : "chưa có TC"} | ${st} | ${o} |`,
     );
   }
-  if (report.failures.length) {
-    lines.push("", "### Test fail", "");
-    if (report.failures.some((f) => !f.triage))
+  const groups = [
+    ["### Test fail", report.failures.filter((f) => !f.setup), null],
+    [
+      "### Lỗi dựng dữ liệu (fixture) — feature chưa được kiểm",
+      report.failures.filter((f) => f.setup),
+      "> Lỗi xảy ra trong code dựng dữ liệu / fixture (`run.setupPaths`), trước hoặc ngoài bước kiểm của test: API dùng để dựng dữ liệu lỗi, môi trường thiếu cấu hình, persona sai… Không kết luận feature hỏng — sửa fixture / môi trường rồi chạy lại.",
+    ],
+  ];
+  for (const [title, list, note] of groups) {
+    if (!list.length) continue;
+    lines.push("", title, "");
+    if (note) lines.push(note, "");
+    if (list.some((f) => !f.triage))
       lines.push(
         "> Chưa phân loại: chạy `/e2e-triage` ở máy (tải kết quả lần chạy này về) để phân loại, sửa script hoặc ghi bug.",
         "",
       );
-    for (const f of report.failures) {
+    for (const f of list) {
       const cls = f.triage
         ? ` — **${f.triage.class}**${f.triage.summary ? `: ${f.triage.summary}` : ""}`
         : "";
@@ -401,7 +429,7 @@ export function reportText(report) {
     out.push(`  ✎ TC cần xem lại: ${f.tc || f.title} — ${f.triage.summary || "mâu thuẫn spec"} → /testcase ${f.feature || "<mã>"}`);
   for (const f of report.failures)
     out.push(
-      `  ✘ ${f.title} [${f.fingerprint}]${f.triage ? ` — ${f.triage.class}` : ""}${f.step ? `\n      ở: ${f.step}` : ""}\n      ${f.error.split("\n")[0]}`,
+      `  ✘ ${f.title} [${f.fingerprint}]${f.setup ? " — lỗi dựng dữ liệu" : ""}${f.triage ? ` — ${f.triage.class}` : ""}${f.step ? `\n      ở: ${f.step}` : ""}\n      ${f.error.split("\n")[0]}`,
     );
   return out.join("\n");
 }

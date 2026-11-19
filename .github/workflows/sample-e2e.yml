@@ -1,0 +1,75 @@
+# Kiểm workflow mẫu ở docs/04 bằng chính action của kit (bản trong nhánh này): examples/project1 đóng vai "môi trường
+# dev" — dựng ngay trong job thay cho bước deploy của dự án. Lớp phủ cấu hình + smoke test: .github/sample-e2e/.
+name: Mẫu e2e (project1)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: examples/project1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.12'
+          cache-dependency-path: examples/project1/be/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Lớp phủ — ai-kit.yml + smoke test (chỉ trên máy CI)
+        run: cp -R ../../.github/sample-e2e/. . && rm README.md
+      - name: Cài project1
+        run: npm ci --no-audit --no-fund && (cd fe && npm ci --no-audit --no-fund) && npx playwright install --with-deps chromium
+
+      - name: actions/gate (như job PR của mẫu)
+        uses: ./actions/gate
+        with:
+          root: examples/project1
+          publish: 'false'
+
+      - name: actions/e2e khi môi trường chưa lên → env-down
+        id: down
+        continue-on-error: true
+        uses: ./actions/e2e
+        with:
+          root: examples/project1
+          base-url: http://localhost:3999
+          env: ci-sample
+          wait-timeout: '5'
+          publish: 'false'
+          history: 'false'
+          artifact: ''
+      - name: Kiểm env-down
+        run: test "${{ steps.down.outputs.status }}" = env-down
+
+      - name: Dựng project1 (thay cho deploy dev của dự án)
+        run: bash scripts/up.sh
+      - name: actions/e2e sau deploy (như job after-deploy của mẫu)
+        id: e2e
+        uses: ./actions/e2e
+        with:
+          root: examples/project1
+          scope: all
+          base-url: http://localhost:3000
+          env: ci-sample
+          publish: 'false'
+          history: 'false'
+          artifact: sample-e2e-results
+      - name: Kiểm passed
+        run: test "${{ steps.e2e.outputs.status }}" = passed
+      - name: Tắt app
+        if: always()
+        run: bash scripts/down.sh || true

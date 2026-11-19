@@ -7,7 +7,7 @@ bất kỳ. Đọc [README.md](README.md) và [docs/README.md](docs/README.md) t
 
 1. **Không đưa thứ riêng của một dự án vào repo này** (mã spec, đường dẫn, tên màn hình, tài khoản, stack, lệnh
    build). Ví dụ trong tài liệu được phép lấy từ `app-base`, nhưng phải ghi rõ là ví dụ. `process/`, `claude/`,
-   `prompts/`, `templates/`, `RULES.md` phải trung tính — `test/kit.test.mjs` chặn chuỗi riêng dự án.
+   `prompts/`, `templates/`, `RULES.md` phải trung tính — `cli/test/kit.test.mjs` chặn chuỗi riêng dự án.
 2. Phần riêng của dự án đi qua `ai-kit.yml` hoặc adapter trong `adapters/`. Lớp kỹ thuật là của repo dự án (`guides`):
    kit không chép lại, không viết đè — chỉ chèn khối `ai-kit:start/end`.
 3. Prompt TAF trong `prompts/` (và `process/testcase.md`) phải giữ hai ràng buộc: AI **không sửa code ứng dụng** (chỉ
