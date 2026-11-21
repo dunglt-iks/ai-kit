@@ -2,7 +2,7 @@ name: ai-kit e2e
 description: >-
   Chạy e2e / hồi quy vào app dự án đã dựng (sau deploy dev / staging, hằng đêm). Chờ app trả lời → chạy run.command →
   báo cáo theo feature / TC (step summary, artifact), issue theo dõi môi trường "E2E <env> đang đỏ" (mở / cập nhật /
-  đóng), đóng bug đã hết. Không gọi AI, không ghi bug mới — phân loại + ghi bug làm ở máy bằng /e2e-triage <run-id>.
+  đóng), đóng bug đã hết. Không gọi AI, không ghi bug mới — phân loại + ghi bug làm ở máy bằng /kit:e2e-triage <run-id>.
   Kiểm tuân thủ của PR (không chạy test) là action riêng: actions/gate.
 inputs:
   scope:
@@ -48,7 +48,7 @@ inputs:
     description: '"true" = giữ lịch sử kết quả (run.history) giữa các lần chạy bằng cache — cho kit flaky'
     default: 'true'
   artifact:
-    description: Tên artifact chứa thư mục kết quả (báo cáo md, JSON, trace, ảnh) — /e2e-triage <run-id> tải về. Trống = không upload
+    description: Tên artifact chứa thư mục kết quả (báo cáo md, JSON, trace, ảnh) — /kit:e2e-triage <run-id> tải về. Trống = không upload
     default: e2e-results
 outputs:
   features:
@@ -68,7 +68,7 @@ runs:
   steps:
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
     - name: Cài ai-kit
       shell: bash
       run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../.."

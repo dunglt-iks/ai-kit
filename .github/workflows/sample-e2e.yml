@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: examples/project1/be/go.sum
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Lớp phủ — ai-kit.yml + smoke test (chỉ trên máy CI)
         run: cp -R ../../.github/sample-e2e/. . && rm README.md
       - name: Cài project1

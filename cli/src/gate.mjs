@@ -47,7 +47,7 @@ export function gateFeature(cfg, code) {
     );
   if (!fs.existsSync(tcAbs)) {
     problems.push(
-      `Chưa có test case \`${tcFile}\` — chạy \`/testcase ${code}\``,
+      `Chưa có test case \`${tcFile}\` — chạy \`/kit:testcase ${code}\``,
     );
     return { code, ok: false, problems, warnings, tcFile };
   }
@@ -90,7 +90,7 @@ export function gateFeature(cfg, code) {
   if (cfg.gate.requireScript !== false && !problems.length && activeTc) {
     const sc = checkScript(cfg, code);
     for (const e of sc.errors)
-      problems.push(`Script \`${sc.file}\`: ${e} — chạy \`/e2e-script ${code}\` ở máy rồi push`);
+      problems.push(`Script \`${sc.file}\`: ${e} — chạy \`/kit:e2e-script ${code}\` ở máy rồi push`);
     sc.warnings.forEach((w) => warnings.push(`Script \`${sc.file}\`: ${w}`));
   }
   const known = new Set(required);

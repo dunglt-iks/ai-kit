@@ -6,4 +6,4 @@
 |---|---|---|---|
 | `spec/` | `spec.adapter` | `prd-fsd`: PRD + FSD (khuôn ở `templates/`; định dạng gốc lấy từ app-base) | [01 §2](../docs/01-architecture.md) |
 | `tracker/` | `tracker.adapter` | `github` | [07 §5](../docs/07-bug-reporting.md) |
-| `agent/` | `agents` | `claude` (vỏ lệnh/agent + khối trong CLAUDE.md), `agents-md` (khối trong AGENTS.md) | [10 §2](../docs/10-quy-trinh.md) — trả về `{ name, files, instructionFile, bridgeStyle }`; chỉ dùng adapter có sẵn |
+| `agent/` | `agents` | `claude` (plugin `kit` + luật deny trong `.claude/settings.json`, khối trong CLAUDE.md) | [10 §2](../docs/10-quy-trinh.md) — trả về `{ name, instructionFile, autoLoads, commandPrefix, settingsFile, settings() }`; chỉ dùng adapter có sẵn. Công cụ khác (vd Antigravity) thêm adapter mới ở đây |

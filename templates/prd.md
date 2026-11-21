@@ -1,7 +1,7 @@
 # PRD — <Tên module> (<MOD>)
 
 <!--
-  Khuôn PRD của ai-kit (spec.templates.prd). Quy tắc: .ai-kit/RULES.md §2. Xoá các chú thích HTML khi dùng.
+  Khuôn PRD của ai-kit (spec.templates.prd). Quy tắc: node_modules/ai-kit/RULES.md §2. Xoá các chú thích HTML khi dùng.
   PRD chỉ nói về module này; bối cảnh toàn hệ thống trỏ về spec.index, không chép lại.
   Tên mục, tên cột viết theo `language` của dự án — trừ cột "Code"/"Mã" và "Spec" của Feature Summary:
   TAF đọc trạng thái duyệt ở cột Spec của bảng này.

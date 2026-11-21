@@ -1,6 +1,6 @@
 // @ts-check
 // kit context: in cấu hình đã giải cho AI đọc ở bước 0 của mọi lệnh quy trình (hai lớp quy định).
-// kit doctor: kiểm việc nhúng kit vào repo (cấu hình, guides, vỏ lệnh, khối cầu nối…).
+// kit doctor: kiểm việc nhúng kit vào repo (cấu hình, guides, settings của công cụ AI, khối cầu nối…).
 // kit next-code: cấp mã kế tiếp (feature, US, SCR, BR, việc nhỏ) — không để AI tự đoán số.
 import fs from "node:fs";
 import path from "node:path";
@@ -8,17 +8,12 @@ import { bridgeBlock, findBlock } from "./bridge.mjs";
 import { rel } from "./config.mjs";
 import { TafError } from "./errors.mjs";
 import { readyFeature } from "./approve.mjs";
-import { AGENT_ADAPTERS, KIT, SHELL_MARK } from "./init.mjs";
-import { flatScripts } from "./scripts.mjs";
+import { AGENT_ADAPTERS, KIT, kitRelease, loadAgent, mergeSettings } from "./init.mjs";
 import { loadQuarantine } from "./history.mjs";
 
-/** Đường dẫn kit nhìn từ gốc dự án (thường là .ai-kit). */
+/** Thư mục gói ai-kit nhìn từ gốc dự án (thường node_modules/ai-kit); ngoài dự án thì đường dẫn tuyệt đối. */
 export function kitPath(cfg) {
-  const mount = path.join(cfg.root, ".ai-kit");
-  try {
-    if (fs.realpathSync(mount) === fs.realpathSync(KIT)) return ".ai-kit";
-  } catch {}
-  const r = path.relative(cfg.root, KIT).split(path.sep).join("/");
+  const r = path.relative(fs.realpathSync(cfg.root), fs.realpathSync(KIT)).split(path.sep).join("/");
   return r && !r.startsWith("..") ? r : KIT;
 }
 
@@ -73,9 +68,9 @@ export async function buildContext(cfg, o = {}) {
   const auto = await autoLoaded(cfg);
   return {
     configFile: cfg.file ? rel(cfg, cfg.file) : null,
-    configVersion: cfg.sourceVersion ?? 2,
     kit,
-    cli: `node ${kit}/cli/bin/kit.mjs`,
+    kitVersion: kitRelease().version,
+    cli: "npx --no kit",
     language: cfg.language,
     layers: {
       technical: {
@@ -119,8 +114,9 @@ const list = (a) => (a && a.length ? a.join(", ") : "—");
 
 export function contextText(c) {
   const L = [];
-  L.push(`# ai-kit context — ${c.configFile ?? "(không có file cấu hình)"}${c.configVersion === 1 ? " (TAF 1.x, nên chuyển sang ai-kit.yml: kit init)" : ""}`);
+  L.push(`# ai-kit context — ${c.configFile ?? "(không có file cấu hình)"}`);
   L.push(`Ngôn ngữ viết tài liệu, câu hỏi, báo cáo: ${c.language}`);
+  L.push(`Kit: ${c.kit} (ai-kit ${c.kitVersion})`);
   L.push(`CLI: ${c.cli}`);
   L.push("");
   L.push("## Lớp kỹ thuật — của repo (code thế nào)");
@@ -234,9 +230,7 @@ export async function doctor(cfg) {
   const error = (msg) => out.push({ level: "error", msg });
   const exists = (p) => fs.existsSync(path.join(cfg.root, p));
 
-  if (cfg.sourceVersion === 1)
-    warn(`${rel(cfg, cfg.file)} là cấu hình TAF 1.x — chạy kit init để tạo ai-kit.yml`);
-  else ok(`cấu hình ${rel(cfg, cfg.file)}`);
+  ok(`cấu hình ${rel(cfg, cfg.file)}`);
 
   if (!cfg.guides.length)
     warn("guides rỗng: AI không biết quy định kỹ thuật của repo — khai file hướng dẫn (CLAUDE.md, AGENTS.md…)");
@@ -245,7 +239,7 @@ export async function doctor(cfg) {
     error(`review.checklist không tồn tại: ${cfg.review.checklist}`);
 
   for (const r of cfg.spec.roots)
-    exists(r) ? ok(`spec root ${r}`) : warn(`spec root chưa có: ${r} (/spec sẽ tạo)`);
+    exists(r) ? ok(`spec root ${r}`) : warn(`spec root chưa có: ${r} (/kit:spec sẽ tạo)`);
   for (const [k, f] of Object.entries(cfg.spec.templates))
     if (f && !exists(String(f))) error(`spec.templates.${k} không tồn tại: ${f}`);
   for (const [k, f] of [
@@ -259,33 +253,38 @@ export async function doctor(cfg) {
   else {
     for (const c of cfg.stack.checks)
       if (!c?.name || !c?.run) error(`stack.checks: thiếu name/run: ${JSON.stringify(c)}`);
-    if (!cfg.stack.checks.length) warn("stack.checks rỗng: /dev, /ship sẽ phải lấy lệnh kiểm từ guides");
+    if (!cfg.stack.checks.length) warn("stack.checks rỗng: /kit:dev, /kit:ship sẽ phải lấy lệnh kiểm từ guides");
   }
 
+  if ("kitRef" in cfg) warn("kitRef không còn dùng (từ ai-kit 3): phiên bản kit là gói ai-kit trong devDependencies — xoá khoá này");
   for (const name of cfg.agents) {
     if (!AGENT_ADAPTERS.includes(name)) {
       error(`agents: không có adapter "${name}" (có: ${AGENT_ADAPTERS.join(", ")})`);
       continue;
     }
-    const a = (await import(`../../adapters/agent/${name}.mjs`)).createAgentAdapter();
-    for (const [src, dst] of a.files) {
-      if (!exists(dst)) {
-        error(`${name}: thiếu ${dst} — chạy kit init`);
-        continue;
+    const a = await loadAgent(name);
+    const sf = path.join(cfg.root, a.settingsFile);
+    if (!fs.existsSync(sf)) error(`${name}: thiếu ${a.settingsFile} (plugin kit, deny) — chạy kit init`);
+    else {
+      try {
+        const cur = fs.readFileSync(sf, "utf8");
+        const ours = a.settings(kitRelease());
+        if (mergeSettings(cur, ours).action !== "keep")
+          warn(`${name}: ${a.settingsFile} chưa khớp ai-kit ${kitRelease().version} (marketplace / plugin / deny) — chạy kit init`);
+        const on = JSON.parse(cur).enabledPlugins || {};
+        for (const [k, v] of Object.entries(ours.enabledPlugins))
+          if (on[k] === false) warn(`${name}: ${a.settingsFile} tắt plugin ${k} — lệnh quy trình và hook chặn AI tự duyệt sẽ không có`);
+      } catch (e) {
+        error(`${name}: ${a.settingsFile}: ${e.message}`);
       }
-      const cur = fs.readFileSync(path.join(cfg.root, dst), "utf8");
-      if (!cur.includes(SHELL_MARK))
-        warn(`${name}: ${dst} là lệnh riêng của repo, không phải vỏ của kit — bước này sẽ không theo quy trình ai-kit (đổi tên lệnh của repo, hoặc kit init --force)`);
-      else if (cur !== fs.readFileSync(path.join(KIT, src), "utf8"))
-        warn(`${name}: ${dst} đã cũ — chạy kit init`);
     }
     const f = path.join(cfg.root, a.instructionFile);
     const text = fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "";
     const b = findBlock(text);
     if (!b) error(`${name}: ${a.instructionFile} chưa có khối ai-kit — chạy kit init`);
-    else if (text.slice(b.start, b.end) !== bridgeBlock(a.bridgeStyle))
+    else if (text.slice(b.start, b.end) !== bridgeBlock(a.commandPrefix))
       warn(`${name}: khối ai-kit trong ${a.instructionFile} đã cũ — chạy kit init`);
-    else ok(`${name}: vỏ lệnh + khối cầu nối trong ${a.instructionFile}`);
+    else ok(`${name}: ${a.settingsFile} + khối cầu nối trong ${a.instructionFile}`);
   }
 
   if (!cfg.run.command) error("run.command trống: kit e2e không biết chạy test bằng lệnh nào");
@@ -297,13 +296,9 @@ export async function doctor(cfg) {
   } catch (e) {
     error(e.message);
   }
-  const flat = flatScripts(cfg);
-  if (flat.length)
-    warn(`${flat.length} script nằm phẳng trong ${cfg.scripts.dir}/ — cấu trúc là ${cfg.scripts.dir}/<module>/<MÃ>${cfg.scripts.ext}; chạy kit init --migrate`);
-
-  const gi = exists(".gitignore") ? fs.readFileSync(path.join(cfg.root, ".gitignore"), "utf8") : "";
-  if (!gi.split("\n").some((l) => l.trim().replace(/^\//, "").replace(/\/$/, "") === ".ai-kit"))
-    warn(".gitignore chưa có /.ai-kit");
+  const pj = exists("package.json") ? JSON.parse(fs.readFileSync(path.join(cfg.root, "package.json"), "utf8")) : null;
+  if (!pj?.devDependencies?.["ai-kit"] && !pj?.dependencies?.["ai-kit"])
+    warn("package.json của dự án chưa khai ai-kit trong devDependencies — đồng đội và CI không có cùng bản kit");
 
   try {
     const n = cfg.adapter.listFeatures().length;

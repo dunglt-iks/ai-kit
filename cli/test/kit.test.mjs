@@ -1,4 +1,4 @@
-// ai-kit 2.x: cấu hình v2, nhúng kit vào repo đã có hướng dẫn AI, context, doctor, next-code, và lint
+// ai-kit 3.x: cấu hình v2, nhúng kit vào repo đã có hướng dẫn AI (settings + plugin), context, doctor, next-code, và lint
 // chống đưa thứ riêng của một dự án vào phần quy trình của kit (CLAUDE.md quy tắc 1).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -14,7 +14,7 @@ import { buildContext, contextText, doctor, nextCode } from "../src/context.mjs"
 import { initProject } from "../src/init.mjs";
 
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const REPO_V2 = path.join(KIT, "cli/test/fixtures/repo-v2"); // dữ liệu cho test: cấu hình, spec, TC, vỏ lệnh của một dự án đã nhúng kit
+const REPO_V2 = path.join(KIT, "cli/test/fixtures/repo-v2"); // dữ liệu cho test: cấu hình, spec, TC, settings của một dự án đã nhúng kit
 
 function tmp(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-"));
@@ -43,30 +43,10 @@ stack: { checks: [{ name: unit, run: npm test }] }
   assert.equal(cfg.project.baseBranch, "main");
   assert.deepEqual(cfg.agents, ["claude"]);
   assert.equal(cfg.testcases.dir, "e2e/testcases");
-  assert.equal(cfg.sourceVersion, 2);
-});
-
-test("cấu hình v1 (TAF 1.x): approvedValue → spec.status.approved, run.targets → run.command, không đòi vỏ lệnh", () => {
-  const dir = tmp({
-    "e2e/taf.config.yml":
-      "version: 1\nspec: { approvedValue: OK }\nrun: { report: r.json, targets: { ci: { start: up.sh, test: 'npx playwright test {files}', stop: down.sh } } }\n",
-  });
-  const cfg = loadConfig({ root: dir });
-  assert.equal(cfg.sourceVersion, 1);
-  // run.targets.ci.test → run.command; start/stop (việc của CI dự án) bỏ
-  assert.equal(cfg.run.command, "npx playwright test {files}");
-  assert.equal(cfg.run.report, "r.json");
-  assert.equal(cfg.run.targets, undefined);
-  assert.equal(cfg.spec.status.approved, "OK");
-  assert.deepEqual(cfg.agents, []);
-  assert.deepEqual(cfg.trigger.statusDone, ["Hoàn thành"]);
-  assert.match(cfg.spec.featurePattern, /CORE-C/);
-  fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 3\n");
-  assert.throws(() => loadConfig({ root: dir }), /version: 2/);
 });
 
 test("khối cầu nối: chèn cuối file, thay đúng phần trong dấu, giữ nguyên phần còn lại", () => {
-  const block = bridgeBlock("commands");
+  const block = bridgeBlock("/kit:");
   const repo = "# Quy định repo\n\nDùng Go 1.23.\n";
   const a = upsertBlock(repo, block);
   assert.equal(a.action, "update");
@@ -76,81 +56,88 @@ test("khối cầu nối: chèn cuối file, thay đúng phần trong dấu, gi�
   const b = upsertBlock(old, block);
   assert.equal(b.text, `${a.text}\n## Phần sau của repo\n`);
   assert.equal(upsertBlock("", block).action, "create");
-  assert.ok(bridgeBlock("files").includes(".ai-kit/process/dev.md"));
+  assert.match(block, /`\/kit:dev`/);
+  assert.match(block, /npx --no kit context/);
+  assert.doesNotMatch(block, /\.ai-kit\//);
 });
 
-test("kit init vào repo đã có CLAUDE.md, AGENTS.md, lệnh /spec riêng: dò guides, không đụng nội dung của repo", async () => {
+test("kit init vào repo đã có CLAUDE.md, AGENTS.md, settings riêng: dò guides, trộn settings, không đụng nội dung của repo", async () => {
+  const { kitRelease } = await import("../src/init.mjs");
+  const { DENY } = await import("../../adapters/agent/claude.mjs");
   const claude = "# CLAUDE.md\n\nStack: Go + Vue. Lớp: api → logic → dao.\n";
   const agents = "# AGENTS.md\nChạy make lint trước khi commit.";
-  const mySpec = "---\ndescription: lệnh spec riêng của repo\n---\n";
+  const mine = { permissions: { allow: ["Bash(make lint)"], deny: ["Bash(rm -rf *)"] }, enabledPlugins: { "x@y": true }, model: "opus" };
   const dir = tmp({
     "CLAUDE.md": claude,
     "AGENTS.md": agents,
     ".cursor/rules/x.mdc": "rule",
-    ".claude/commands/spec.md": mySpec,
-    ".gitignore": "node_modules\n.ai-kit/\n",
+    ".claude/settings.json": JSON.stringify(mine),
+    ".gitignore": "node_modules\n",
+    "package.json": JSON.stringify({ devDependencies: { "ai-kit": "github:dunglt-iks/ai-kit#v3.0.0" } }),
   });
   const res = await initProject(dir);
   const act = Object.fromEntries(res.map((r) => [r.file, r.action]));
   assert.equal(act["ai-kit.yml"], "create");
-  assert.equal(act[".claude/commands/spec.md"], "keep"); // lệnh trùng tên của repo: giữ, báo
-  assert.match(res.find((r) => r.file === ".claude/commands/spec.md").note, /--force/);
-  assert.equal(act[".claude/commands/dev.md"], "create");
-  assert.equal(act[".claude/agents/tester.md"], "create");
-  assert.equal(act[".claude/agents/spec-reviewer.md"], "create");
-  assert.equal(act[".claude/commands/e2e-script.md"], "create");
-  assert.equal(act[".claude/commands/e2e-triage.md"], "create");
-  // CI là của dự án: init không đụng .github/, không tạo file mẫu trong e2e/
-  assert.ok(!res.some((r) => r.file.startsWith(".github/") || r.file.startsWith("e2e/")));
-  assert.ok(!fs.existsSync(path.join(dir, ".github")));
+  assert.equal(act[".claude/settings.json"], "update");
   assert.equal(act["CLAUDE.md"], "update");
-  assert.equal(act["AGENTS.md"], "update");
-  assert.equal(act[".gitignore"], "update"); // .ai-kit/ đã có, chỉ thêm e2e/test-results
+  assert.equal(act[".gitignore"], "update");
+  assert.equal(act["AGENTS.md"], undefined); // chỉ đọc làm guides, không chèn khối
+  // CI là của dự án: init không đụng .github/; không còn vỏ lệnh trong .claude/commands
+  assert.ok(!res.some((r) => r.file.startsWith(".github/") || r.file.startsWith("e2e/")));
+  assert.ok(!fs.existsSync(path.join(dir, ".claude/commands")));
 
   const cfg = YAML.parse(fs.readFileSync(path.join(dir, "ai-kit.yml"), "utf8"));
   assert.deepEqual(cfg.guides, ["CLAUDE.md", "AGENTS.md", ".cursor/rules"]);
-  assert.deepEqual(cfg.agents, ["claude", "agents-md"]);
-  assert.equal(cfg.kitRef, "v2");
+  assert.deepEqual(cfg.agents, ["claude"]);
+  assert.equal(cfg.kitRef, undefined);
+  const settings = JSON.parse(fs.readFileSync(path.join(dir, ".claude/settings.json"), "utf8"));
+  const { repo, ref } = kitRelease();
+  assert.equal(repo, "dunglt-iks/ai-kit");
+  assert.equal(ref, `v${JSON.parse(fs.readFileSync(path.join(KIT, "package.json"), "utf8")).version}`);
+  assert.deepEqual(settings.extraKnownMarketplaces["ai-kit"], { source: { source: "github", repo, ref } });
+  assert.deepEqual(settings.enabledPlugins, { "kit@ai-kit": true, "x@y": true });
+  assert.deepEqual(settings.permissions, { allow: ["Bash(make lint)"], deny: ["Bash(rm -rf *)", ...DENY] });
+  assert.equal(settings.model, "opus");
   assert.ok(fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8").startsWith(claude));
-  assert.ok(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8").startsWith(`${agents}\n\n<!-- ai-kit:start`));
-  assert.ok(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8").includes(".ai-kit/process/spec.md"));
-  assert.equal(fs.readFileSync(path.join(dir, ".claude/commands/spec.md"), "utf8"), mySpec);
-  assert.equal(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), "node_modules\n.ai-kit/\n# ai-kit\n/e2e/test-results/\n");
+  assert.equal(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"), agents);
+  assert.equal(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), "node_modules\n# ai-kit\n/e2e/test-results/\n");
 
   // chạy lại: không nhân đôi khối, không đổi gì
   const again = await initProject(dir);
   assert.ok(again.every((r) => r.action === "keep"), JSON.stringify(again.filter((r) => r.action !== "keep")));
   assert.equal(fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8").split("ai-kit:start").length, 2);
-
-  // chạy lại sau khi đổi kitRef: vỏ của kit (có dấu ai-kit:shell) được làm mới
-  fs.appendFileSync(path.join(dir, ".claude/agents/tester.md"), "vỏ cũ\n");
-  const s = await initProject(dir);
-  assert.equal(s.find((r) => r.file === ".claude/agents/tester.md").action, "overwrite");
-  // lệnh riêng của repo (không có dấu ai-kit:shell): không đụng; doctor cảnh báo
-  assert.equal(s.find((r) => r.file === ".claude/commands/spec.md").action, "keep");
-  assert.equal(fs.readFileSync(path.join(dir, ".claude/commands/spec.md"), "utf8"), mySpec);
-
-  const cfgLoaded = await loadProject({ root: dir });
-  const d = await doctor(cfgLoaded);
+  let d = await doctor(await loadProject({ root: dir }));
   assert.ok(!d.some((r) => r.level === "error"), JSON.stringify(d.filter((r) => r.level === "error")));
-  assert.ok(d.some((r) => r.level === "warn" && /spec\.md là lệnh riêng của repo/.test(r.msg)));
+  assert.ok(!d.some((r) => /settings\.json|devDependencies/.test(r.msg) && r.level !== "ok"));
+
+  // nâng gói kit (ref cũ trong settings): doctor nhắc, kit init đổi ref; repo tắt plugin → giữ false, doctor cảnh báo
+  settings.extraKnownMarketplaces["ai-kit"].source.ref = "v0.0.1";
+  settings.enabledPlugins["kit@ai-kit"] = false;
+  fs.writeFileSync(path.join(dir, ".claude/settings.json"), JSON.stringify(settings));
+  d = await doctor(await loadProject({ root: dir }));
+  assert.ok(d.some((r) => r.level === "warn" && /chưa khớp ai-kit/.test(r.msg)));
+  assert.ok(d.some((r) => r.level === "warn" && /tắt plugin kit@ai-kit/.test(r.msg)));
+  assert.equal((await initProject(dir)).find((r) => r.file === ".claude/settings.json").action, "update");
+  const after = JSON.parse(fs.readFileSync(path.join(dir, ".claude/settings.json"), "utf8"));
+  assert.equal(after.extraKnownMarketplaces["ai-kit"].source.ref, ref);
+  assert.equal(after.enabledPlugins["kit@ai-kit"], false);
+
+  // settings hỏng: báo rõ, không ghi đè
+  fs.writeFileSync(path.join(dir, ".claude/settings.json"), "{ hỏng");
+  await assert.rejects(initProject(dir), /settings không phải JSON hợp lệ/);
+  assert.equal(fs.readFileSync(path.join(dir, ".claude/settings.json"), "utf8"), "{ hỏng");
 });
 
-test("kit init trên repo TAF 1.x: tạo ai-kit.yml chuyển từ e2e/taf.config.yml, giữ file cũ", async () => {
-  const dir = tmp({
-    "e2e/taf.config.yml": "version: 1\nspec: { roots: [specs], approvedValue: OK }\ntrigger: { codePaths: [src/**] }\n",
-  });
+test("kit init --dry-run không ghi; ai-kit.yml có sẵn với kitRef (bản 2.x) → doctor nhắc xoá", async () => {
+  const dir = tmp({});
   const res = await initProject(dir, { dryRun: true });
-  assert.equal(res[0].file, "ai-kit.yml");
-  assert.ok(!fs.existsSync(path.join(dir, "ai-kit.yml"))); // dry-run không ghi
+  assert.deepEqual(res.map((r) => r.file), ["ai-kit.yml", ".claude/settings.json", "CLAUDE.md", ".gitignore"]);
+  assert.deepEqual(fs.readdirSync(dir), []);
+  fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 2\nkitRef: v2\n");
   await initProject(dir);
-  const cfg = loadConfig({ root: dir });
-  assert.equal(cfg.sourceVersion, 2);
-  assert.equal(cfg.spec.status.approved, "OK");
-  assert.deepEqual(cfg.spec.roots, ["specs"]);
-  assert.deepEqual(cfg.trigger.codePaths, ["src/**"]);
-  assert.deepEqual(cfg.agents, ["claude"]);
-  assert.ok(fs.existsSync(path.join(dir, "e2e/taf.config.yml")));
+  const d = await doctor(await loadProject({ root: dir }));
+  assert.ok(d.some((r) => r.level === "warn" && /kitRef không còn dùng/.test(r.msg)));
+  assert.ok(d.some((r) => r.level === "warn" && /devDependencies/.test(r.msg)));
 });
 
 test("context + next-code trên dự án mẫu: mã kế tiếp không tái dùng số", async () => {
@@ -184,7 +171,7 @@ test("CLI kit: context --json, doctor, spec, next-code trên dự án mẫu", ()
 
 // ── Phần quy trình của kit phải trung tính (CLAUDE.md quy tắc 1) ──────────────
 
-const PROCESS_DIRS = ["process", "claude", "prompts", "adapters/agent", "templates"];
+const PROCESS_DIRS = ["process", "plugin", "prompts", "adapters/agent", "templates"];
 const PROCESS_FILES = ["RULES.md"];
 const BANNED = [
   /HotGo/i,
@@ -204,7 +191,7 @@ function walk(rel) {
   return fs.readdirSync(abs).flatMap((f) => walk(path.join(rel, f)));
 }
 
-test("quy trình, vỏ lệnh, khuôn không chứa thứ riêng của một dự án", () => {
+test("quy trình, plugin, khuôn không chứa thứ riêng của một dự án", () => {
   const files = [...PROCESS_DIRS.flatMap(walk), ...PROCESS_FILES];
   const hits = [];
   for (const f of files) {
@@ -218,24 +205,83 @@ test("quy trình, vỏ lệnh, khuôn không chứa thứ riêng của một d�
   assert.deepEqual(hits, []);
 });
 
-test("vỏ lệnh/agent: frontmatter YAML hợp lệ, trỏ tới file quy trình có thật; mọi lệnh có quy trình", async () => {
-  const { createAgentAdapter } = await import("../../adapters/agent/claude.mjs");
-  for (const [src] of createAgentAdapter().files) {
-    const text = fs.readFileSync(path.join(KIT, src), "utf8");
-    const fm = /^---\n([\s\S]*?)\n---\n/.exec(text);
-    assert.ok(fm, `${src}: thiếu frontmatter`);
-    const meta = YAML.parse(fm[1]);
-    assert.ok(meta.description, `${src}: thiếu description`);
-    const target = /`\.ai-kit\/(process\/[^`]+\.md)`/.exec(text);
-    assert.ok(target, `${src}: không trỏ tới .ai-kit/process/`);
-    assert.ok(fs.existsSync(path.join(KIT, target[1])), `${src}: ${target[1]} không tồn tại`);
+test("plugin kit: manifest khớp phiên bản gói, skill / agent trỏ tới quy trình có thật, mỗi bước cầu nối có skill", () => {
+  const read = (f) => fs.readFileSync(path.join(KIT, f), "utf8");
+  const fm = (f) => {
+    const m = /^---\n([\s\S]*?)\n---\n/.exec(read(f));
+    assert.ok(m, `${f}: thiếu frontmatter`);
+    return YAML.parse(m[1]);
+  };
+  const pkg = JSON.parse(read("package.json"));
+  const plugin = JSON.parse(read("plugin/.claude-plugin/plugin.json"));
+  const market = JSON.parse(read(".claude-plugin/marketplace.json"));
+  assert.equal(plugin.name, "kit");
+  assert.equal(plugin.version, pkg.version, "plugin.json và package.json phải cùng phiên bản (một tag)");
+  assert.equal(market.name, "ai-kit");
+  assert.deepEqual(market.plugins.map((p) => [p.name, p.source]), [["kit", "./plugin"]]);
+  // gói npm không mang plugin / ví dụ / test; plugin không cần gói npm
+  for (const f of ["process/", "prompts/", "templates/", "RULES.md", "cli/src/"]) assert.ok(pkg.files.includes(f), f);
+  assert.ok(!pkg.files.some((f) => /^(plugin|examples|cli\/test)/.test(f)));
+
+  const skills = fs.readdirSync(path.join(KIT, "plugin/skills")).sort();
+  const steps = [...bridgeBlock("/kit:").matchAll(/`\/kit:([\w-]+)`/g)].map((m) => m[1]).sort();
+  assert.deepEqual(skills, steps);
+  const targets = (f) => [...read(f).matchAll(/`<kit>\/(process\/[^`]+\.md)`/g)].map((m) => m[1]);
+  for (const s of skills) {
+    const f = `plugin/skills/${s}/SKILL.md`;
+    const meta = fm(f);
+    assert.equal(meta.name, s);
+    assert.ok(meta.description, `${f}: thiếu description`);
+    assert.equal(meta["disable-model-invocation"], true, `${f}: lệnh quy trình do người gọi`);
+    assert.equal(targets(f).length, 1, `${f}: phải trỏ tới đúng một file quy trình`);
+    assert.ok(fs.existsSync(path.join(KIT, targets(f)[0])), `${f}: ${targets(f)[0]} không tồn tại`);
   }
-  // /spec tự gọi spec-reviewer trước khi bàn giao; /e2e-script, /e2e-triage dùng prompt TAF
-  assert.match(fs.readFileSync(path.join(KIT, "process/spec.md"), "utf8"), /subagent `spec-reviewer`/);
-  assert.match(fs.readFileSync(path.join(KIT, "process/e2e-script.md"), "utf8"), /prompts\/script\.md/);
-  assert.match(fs.readFileSync(path.join(KIT, "process/e2e-triage.md"), "utf8"), /prompts\/triage\.md/);
+  for (const a of fs.readdirSync(path.join(KIT, "plugin/agents"))) {
+    const f = `plugin/agents/${a}`;
+    const meta = fm(f);
+    assert.equal(`${meta.name}.md`, a);
+    assert.ok(meta.description && meta.tools, `${f}: thiếu description / tools`);
+    assert.ok(fs.existsSync(path.join(KIT, targets(f)[0])), `${f}: không trỏ tới file quy trình có thật`);
+  }
+  const hook = JSON.parse(read("plugin/hooks/hooks.json")).hooks.PreToolUse[0];
+  assert.equal(hook.matcher, "Bash");
+  assert.deepEqual(hook.hooks[0].args, ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.mjs"]);
+
+  // /kit:spec tự gọi spec-reviewer trước khi bàn giao; /kit:e2e-script, /kit:e2e-triage dùng prompt TAF
+  assert.match(read("process/spec.md"), /subagent `spec-reviewer`/);
+  assert.match(read("process/e2e-script.md"), /prompts\/script\.md/);
+  assert.match(read("process/e2e-triage.md"), /prompts\/triage\.md/);
   for (const f of walk("process").filter((f) => !f.endsWith("README.md")))
-    assert.match(fs.readFileSync(path.join(KIT, f), "utf8"), /kit\.mjs context/, `${f}: thiếu bước 0 (kit context)`);
+    assert.match(read(f), /kit context/, `${f}: thiếu bước 0 (kit context)`);
+  for (const f of [...walk("process"), ...walk("prompts"), ...walk("plugin"), "RULES.md"])
+    assert.doesNotMatch(read(f), /\.ai-kit\/|kitRef/, `${f}: còn đường dẫn .ai-kit/ của bản 2.x`);
+});
+
+test("hook chặn AI chạy kit approve: mọi cách gọi lệnh; không chặn nhầm lệnh khác hay chuỗi nhắc tới nó", async () => {
+  const { blocked } = await import("../../plugin/hooks/guard.mjs");
+  for (const c of [
+    "npx kit approve DM-F01",
+    "npx --no kit approve DM-F01 --testcase",
+    "cd web && npx -y kit approve DM-F01",
+    "npm exec kit approve DM-F01",
+    "node node_modules/ai-kit/cli/bin/kit.mjs approve DM-F01",
+    "./node_modules/.bin/kit approve DM-F01 --prototype",
+    "kit approve DM-F01",
+  ])
+    assert.ok(blocked(c), c);
+  for (const c of ["npx kit ready DM-F01", "grep -rn 'kit approve' docs", "echo kit approve", 'git commit -m "docs: kit approve"', ""])
+    assert.ok(!blocked(c), c);
+  const run = (input) => {
+    try {
+      execFileSync("node", [path.join(KIT, "plugin/hooks/guard.mjs")], { input, stdio: ["pipe", "pipe", "pipe"] });
+      return 0;
+    } catch (e) {
+      return e.status;
+    }
+  };
+  assert.equal(run(JSON.stringify({ tool_name: "Bash", tool_input: { command: "npx kit approve DM-F01" } })), 2);
+  assert.equal(run(JSON.stringify({ tool_name: "Bash", tool_input: { command: "npx kit ready DM-F01" } })), 0);
+  assert.equal(run("không phải JSON"), 0);
 });
 
 // ── Duyệt bằng code, điều kiện sẵn sàng, trùng mã ─────────────────────────────
@@ -266,7 +312,7 @@ test("kit approve + ready: spec nháp → duyệt (ghi người, ngày); prototy
 
   // có giao diện + cột Prototype → phải có prototype đã duyệt
   assert.throws(() => approve(cfg, "DM-F02", { prototype: true, by: "qa" }), /Chưa có prototype/);
-  cfg.adapter.setStatus("DM-F02", "Prototype", "Nháp"); // /prototype đặt nháp — thêm cột cho cả bảng
+  cfg.adapter.setStatus("DM-F02", "Prototype", "Nháp"); // /kit:prototype đặt nháp — thêm cột cho cả bảng
   assert.match(fs.readFileSync(prd, "utf8"), /\| Code \| Tên \| Mô tả ngắn \| Spec \| Prototype \|/);
   assert.match(fs.readFileSync(prd, "utf8"), /\| DM-F01 \|.*\| Đã duyệt \| — \|/);
   cfg = await loadProject({ root: dir });

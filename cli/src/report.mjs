@@ -321,7 +321,7 @@ export function reportMarkdown(report, extra = {}) {
     if (note) lines.push(note, "");
     if (list.some((f) => !f.triage))
       lines.push(
-        "> Chưa phân loại: chạy `/e2e-triage` ở máy (tải kết quả lần chạy này về) để phân loại, sửa script hoặc ghi bug.",
+        "> Chưa phân loại: chạy `/kit:e2e-triage` ở máy (tải kết quả lần chạy này về) để phân loại, sửa script hoặc ghi bug.",
         "",
       );
     for (const f of list) {
@@ -350,7 +350,7 @@ export function reportMarkdown(report, extra = {}) {
       "### Test case cần xem lại (`tc-wrong`)",
       "",
       "Test fail vì test case mâu thuẫn với spec hiện tại — không phải bug app, không ghi issue. Người review xem lại:",
-      "`/testcase <mã>` (đồng bộ TC theo spec) → `kit approve <mã> --testcase` → `/e2e-script <mã>` → `kit e2e <mã>`.",
+      "`/kit:testcase <mã>` (đồng bộ TC theo spec) → `kit approve <mã> --testcase` → `/kit:e2e-script <mã>` → `kit e2e <mã>`.",
       "",
       "| TC | Test | Vì sao |",
       "|---|---|---|",
@@ -396,7 +396,7 @@ export function reportMarkdown(report, extra = {}) {
       "",
       "### ✘ TC đã duyệt chưa có test thực sự chạy (tính là fail)",
       "",
-      ...report.unverified.map((u) => `- ${u.feature}: ${u.tcs.join(", ")} — script thiếu test, test bị comment hoặc skip → \`/e2e-script ${u.feature}\``),
+      ...report.unverified.map((u) => `- ${u.feature}: ${u.tcs.join(", ")} — script thiếu test, test bị comment hoặc skip → \`/kit:e2e-script ${u.feature}\``),
     );
   else {
     const notRun = report.features.flatMap((r) => r.testcases?.notRun || []);
@@ -426,7 +426,7 @@ export function reportText(report) {
   if (report.cleanup?.length) out.push(`  ⚠ dọn dữ liệu test lỗi: ${report.cleanup.length} (xem báo cáo)`);
   for (const q of report.quarantined || []) out.push(`  ⊘ đang cách ly (fail không tính): ${q.title} — ${q.issue}`);
   for (const f of report.failures.filter((x) => x.triage?.class === "tc-wrong"))
-    out.push(`  ✎ TC cần xem lại: ${f.tc || f.title} — ${f.triage.summary || "mâu thuẫn spec"} → /testcase ${f.feature || "<mã>"}`);
+    out.push(`  ✎ TC cần xem lại: ${f.tc || f.title} — ${f.triage.summary || "mâu thuẫn spec"} → /kit:testcase ${f.feature || "<mã>"}`);
   for (const f of report.failures)
     out.push(
       `  ✘ ${f.title} [${f.fingerprint}]${f.setup ? " — lỗi dựng dữ liệu" : ""}${f.triage ? ` — ${f.triage.class}` : ""}${f.step ? `\n      ở: ${f.step}` : ""}\n      ${f.error.split("\n")[0]}`,

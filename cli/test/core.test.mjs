@@ -261,7 +261,7 @@ test("check-paths: file ngoài allowedPaths và ngoài thư mục dự án đề
   const top = fs.mkdtempSync(path.join(os.tmpdir(), "taf-paths-"));
   const proj = path.join(top, "app");
   const files = {
-    "taf.config.yml": `version: 1
+    "ai-kit.yml": `version: 2
 spec: { adapter: ./taf/adapter.mjs }
 scripts: { allowedPaths: ['e2e/gen/**', 'tc/**'] }
 `,
@@ -308,51 +308,33 @@ test("check-paths --triage: fixture (run.setupPaths) bị sửa là lỗi; khôn
   assert.deepEqual(t.setup, ["e2e/support/fixtures.ts"]);
 });
 
-test("cấu hình: ai-kit.yml trước, vẫn đọc e2e/taf.config.yml và taf.config.yml (1.x); mặc định đặt mọi thứ dưới e2e/", async () => {
+test("cấu hình: chỉ ai-kit.yml (version 2) ở gốc dự án; mặc định đặt mọi thứ dưới e2e/", async () => {
   const { loadConfig } = await import("../src/config.mjs");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "taf-cfg-"));
-  fs.writeFileSync(path.join(dir, "taf.config.yml"), "version: 1\ntestcases: { dir: old }\n");
-  assert.equal(loadConfig({ root: dir }).testcases.dir, "old");
-  fs.mkdirSync(path.join(dir, "e2e"));
-  fs.writeFileSync(path.join(dir, "e2e/taf.config.yml"), "version: 1\n");
+  assert.throws(() => loadConfig({ root: dir }), /ai-kit\.yml/);
+  fs.writeFileSync(path.join(dir, "taf.config.yml"), "version: 1\n"); // TAF 1.x: không còn đọc
+  assert.throws(() => loadConfig({ root: dir }), /ai-kit\.yml/);
+  fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 1\n");
+  assert.throws(() => loadConfig({ root: dir }), /version: 2/);
+  fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 2\n");
   const cfg = loadConfig({ root: dir });
-  assert.equal(cfg.file, path.join(dir, "e2e/taf.config.yml"));
-  assert.equal(cfg.root, dir); // đường dẫn vẫn tính từ gốc dự án
+  assert.equal(cfg.root, dir);
   assert.equal(cfg.testcases.dir, "e2e/testcases");
   assert.equal(cfg.scripts.dir, "e2e/scripts");
   assert.equal(cfg.scripts.ext, ".spec.mjs");
   assert.deepEqual(cfg.scripts.allowedPaths, ["e2e/scripts/**", "e2e/pages/**", "e2e/support/**"]);
   assert.equal(cfg.run.report, "e2e/test-results/raw/results.json");
-  const empty = fs.mkdtempSync(path.join(os.tmpdir(), "taf-cfg-"));
-  assert.throws(() => loadConfig({ root: empty }), /ai-kit\.yml/);
   fs.writeFileSync(path.join(dir, "ai-kit.yml"), "version: 2\ntestcases: { dir: tc2 }\n");
   assert.equal(loadConfig({ root: dir }).testcases.dir, "tc2");
 });
 
-test("migrateScripts: script phẳng → <dir>/<module>/, sửa import tương đối; writeHumanReport giữ keepReports file", async () => {
-  const { migrateScripts, flatScripts, listScripts } = await import("../src/scripts.mjs");
+test("writeHumanReport: latest.md + mỗi lần chạy một file, giữ keepReports file", async () => {
   const { writeHumanReport } = await import("../src/report.mjs");
-  const dir = shopProject({
-    "e2e/gen/SHOP-12.spec.js": `import { test } from "../support/fx.js";\nimport { P } from "./pages/p.js";\n`,
-  });
-  fs.rmSync(path.join(dir, "e2e/gen/SHOP"), { recursive: true });
-  const cfg = await loadProject({ root: dir });
-  assert.equal(flatScripts(cfg).length, 1);
-  assert.deepEqual(listScripts(cfg), []);
-  assert.deepEqual(migrateScripts(cfg, { dryRun: true }), [{ from: "e2e/gen/SHOP-12.spec.js", to: "e2e/gen/SHOP/SHOP-12.spec.js" }]);
-  assert.equal(flatScripts(cfg).length, 1); // dry-run không dời
-  migrateScripts(cfg);
-  assert.deepEqual(flatScripts(cfg), []);
-  assert.deepEqual(listScripts(cfg), ["SHOP-12"]);
-  assert.equal(
-    fs.readFileSync(path.join(dir, "e2e/gen/SHOP/SHOP-12.spec.js"), "utf8"),
-    `import { test } from "../../support/fx.js";\nimport { P } from "../pages/p.js";\n`,
-  );
-
+  const cfg = await loadProject({ root: shopProject() });
   cfg.run.keepReports = 2;
   for (const h of [1, 2, 3])
     writeHumanReport(cfg, { env: "ci", createdAt: new Date(2026, 10, 15, h, 0).toISOString() }, `# lần ${h}\n`);
-  const rd = path.join(dir, "e2e/test-results/reports");
+  const rd = path.join(cfg.root, "e2e/test-results/reports");
   assert.deepEqual(fs.readdirSync(rd).sort(), ["2026-11-15-0200-ci.md", "2026-11-15-0300-ci.md", "latest.md"]);
   assert.equal(fs.readFileSync(path.join(rd, "latest.md"), "utf8"), "# lần 3\n");
 });

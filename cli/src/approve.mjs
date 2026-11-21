@@ -25,7 +25,7 @@ function adapterFeature(cfg, code) {
 }
 
 /**
- * Điều kiện để chạy /testcase, /e2e-script, /dev cho một feature.
+ * Điều kiện để chạy /kit:testcase, /kit:e2e-script, /kit:dev cho một feature.
  * @returns {{ code: string, ok: boolean, problems: string[], notes: string[] }}
  */
 export function readyFeature(cfg, code) {
@@ -50,13 +50,13 @@ export function readyFeature(cfg, code) {
           : "Không theo dõi prototype cho feature này (PRD không có cột Prototype, hoặc ô ghi —)"
         : "Feature không có màn hình — không cần prototype",
     );
-  else if (!p.file) problems.push(`Chưa có prototype — chạy /prototype ${f.file} ${code}`);
+  else if (!p.file) problems.push(`Chưa có prototype — chạy /kit:prototype ${f.file} ${code}`);
   else if (!p.approved)
     problems.push(`Prototype chưa duyệt (Prototype: ${p.status || "trống"}) — xem ${p.file} rồi: kit approve ${code} --prototype`);
   else if (p.stamp !== p.screensHash)
     problems.push(
       p.stamp
-        ? `Màn hình trong spec đã đổi sau khi duyệt prototype — cập nhật ${p.file} (/prototype) rồi: kit approve ${code} --prototype`
+        ? `Màn hình trong spec đã đổi sau khi duyệt prototype — cập nhật ${p.file} (/kit:prototype) rồi: kit approve ${code} --prototype`
         : `Prototype đã duyệt nhưng chưa có dấu ai-kit:prototype — chạy lại: kit approve ${code} --prototype`,
     );
   return { code, ok: problems.length === 0, problems, notes };
@@ -64,7 +64,7 @@ export function readyFeature(cfg, code) {
 
 /**
  * Người đã viết / sửa file TC: tác giả các commit đụng file, cộng người dùng hiện tại nếu file đang có thay đổi chưa
- * commit (vừa chạy /testcase). Không phải repo git → [].
+ * commit (vừa chạy /kit:testcase). Không phải repo git → [].
  */
 export function testcaseAuthors(cfg, abs) {
   const run = (args) => execFileSync("git", args, { cwd: cfg.root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -81,7 +81,7 @@ export function testcaseAuthors(cfg, abs) {
 function approveTestcase(cfg, f, by) {
   const abs = testcasePath(cfg, f.code);
   const file = rel(cfg, abs);
-  if (!fs.existsSync(abs)) throw new TafError(`Chưa có test case ${file} — chạy /testcase ${f.code}`);
+  if (!fs.existsSync(abs)) throw new TafError(`Chưa có test case ${file} — chạy /kit:testcase ${f.code}`);
   const { parsed, issues } = lintTestcase(cfg, abs);
   // lỗi do chính việc duyệt gây ra (thiếu / lệch approvedHash, chưa reviewer) không chặn việc duyệt lại
   const errs = issues.filter((i) => i.level === "error" && !/approvedHash|phải có "reviewer"/.test(i.msg));
@@ -89,9 +89,9 @@ function approveTestcase(cfg, f, by) {
     throw new TafError(`${file} còn ${errs.length} lỗi (kit lint-tc) — sửa trước khi duyệt:\n  ${errs.map((i) => `${i.line}: ${i.msg}`).join("\n  ")}`);
   const fm = parsed.frontmatter || {};
   if (!fm.specHash)
-    throw new TafError(`${file} chưa có specHash — /testcase ${f.code} ghi specHash của spec hiện tại trước`);
+    throw new TafError(`${file} chưa có specHash — /kit:testcase ${f.code} ghi specHash của spec hiện tại trước`);
   if (fm.specHash !== f.hash)
-    throw new TafError(`${file} lỗi thời: spec đã đổi sau khi viết TC — /testcase ${f.code} để đồng bộ trước`);
+    throw new TafError(`${file} lỗi thời: spec đã đổi sau khi viết TC — /kit:testcase ${f.code} để đồng bộ trước`);
   const text = fs.readFileSync(abs, "utf8");
   const end = text.indexOf("\n---", 3);
   const head = text.slice(0, end);
@@ -133,7 +133,7 @@ export function approve(cfg, code, o = {}) {
   if (what === "spec") return { file: a.setStatus(code, "Spec", value), value };
   if (cfg.spec.prototype === false) throw new TafError("Dự án không dùng prototype (spec.prototype: false)");
   if (!f.prototype?.screensHash) throw new TafError(`${code} không có màn hình — không cần duyệt prototype`);
-  if (!f.prototype.file) throw new TafError(`Chưa có prototype — chạy /prototype ${f.file} ${code}`);
+  if (!f.prototype.file) throw new TafError(`Chưa có prototype — chạy /kit:prototype ${f.file} ${code}`);
   const stamped = a.stampPrototype(code);
   return { file: a.setStatus(code, "Prototype", value), value, stamped };
 }

@@ -41,15 +41,17 @@ Adapter `prd-fsd` có sẵn đọc định dạng PRD + FSD của app-base (feat
 ## 3. Hai repo, Claude chạy trong repo dự án
 
 ```
-repo dự án (CWD)                         .ai-kit/  (ai-kit @ tag đã ghim)
-├── ai-kit.yml          cấu hình         ├── cli/        kit init | doctor | context | approve | e2e | gate …
-├── CLAUDE.md, AGENTS.md… (guides)       ├── RULES.md, process/   quy trình /spec … /ship, agent tester/reviewer
-├── .claude/commands|agents  vỏ lệnh     ├── actions/gate, e2e  điểm cắm CI (GitHub)
-├── <spec>                               ├── prompts/    testcase, script, triage
-├── playwright.config.mjs                ├── adapters/   spec (prd-fsd), tracker (github), agent (claude, agents-md)
-├── e2e/        (§3.1)                   ├── claude/     vỏ lệnh/agent cài vào .claude/
-└── .github/workflows/  của dự án        ├── templates/  ai-kit.yml, khuôn PRD/FSD/kế hoạch/prototype
-    (+ workflow mẫu ai-kit.yml: 04 §4)   └── examples/project1/  dự án mẫu (Go + Next.js)
+repo dự án (CWD)                         repo ai-kit @ tag (vd v3.0.0) — ba kênh
+├── ai-kit.yml          cấu hình         ├── gói npm → node_modules/ai-kit/ của dự án
+├── package.json  devDependencies:       │   ├── cli/        kit init | doctor | context | approve | e2e | gate …
+│     ai-kit: github:…/ai-kit#v3.0.0     │   ├── RULES.md, process/   quy trình /kit:spec … /kit:ship, agent
+├── CLAUDE.md… (guides + khối cầu nối)   │   ├── prompts/    testcase, script, triage
+├── .claude/settings.json  plugin, deny  │   ├── adapters/   spec (prd-fsd), tracker (github), agent (claude)
+├── <spec>                               │   └── templates/  ai-kit.yml, khuôn PRD/FSD/kế hoạch/prototype
+├── playwright.config.mjs                ├── plugin/ + .claude-plugin/  plugin Claude Code `kit` (skill, agent, hook)
+├── e2e/        (§3.1)                   ├── actions/gate, e2e  điểm cắm CI (GitHub)
+└── .github/workflows/  của dự án        └── examples/project1/  dự án mẫu (Go + Next.js) — không vào gói
+    (+ workflow mẫu ai-kit.yml: 04 §4)
 ```
 
 ### 3.1 Thư mục `e2e/`
@@ -57,8 +59,8 @@ repo dự án (CWD)                         .ai-kit/  (ai-kit @ tag đã ghim)
 ```
 e2e/
 ├── README.md                       hướng dẫn viết test của dự án (scripts.guide)
-├── testcases/<MOD>/<MÃ>.md         test case            ← /testcase, người duyệt
-├── scripts/<MOD>/<MÃ>.spec.mjs     script sinh từ TC    ← /e2e-script
+├── testcases/<MOD>/<MÃ>.md         test case            ← /kit:testcase, người duyệt
+├── scripts/<MOD>/<MÃ>.spec.mjs     script sinh từ TC    ← /kit:e2e-script
 ├── pages/<MOD>/*.mjs               page object theo module; pages/common/ dùng chung
 ├── tests/                          test viết tay không theo TC (smoke…)
 ├── support/                        khung test: fixtures.mjs, global-setup.mjs, global-teardown.mjs, personas.mjs
@@ -67,7 +69,7 @@ e2e/
     ├── reports/latest.md           báo cáo cho người đọc + <YYYY-MM-DD-HHmm>-<env>.md (giữ run.keepReports file)
     ├── playwright/                 trace, ảnh, video (outputDir của Playwright — bị xoá mỗi lần chạy)
     ├── .auth/                      storageState theo persona
-    └── raw/                        results.json (Playwright), result.json (kit), triage.json (/e2e-triage)
+    └── raw/                        results.json (Playwright), result.json (kit), triage.json (/kit:e2e-triage)
 ```
 
 `<MOD>` là mã module lấy từ mã feature (`DM-F01` → `DM`), giống thư mục test case. `ai-kit.yml` và
@@ -75,12 +77,12 @@ e2e/
 
 | Phần | Kit bắt buộc? | Ghi chú |
 |---|---|---|
-| `testcases/<MOD>/`, `scripts/<MOD>/`, `test-results/reports`, `test-results/raw` | **Có** — kit đọc / ghi theo đúng chỗ (đổi gốc bằng `testcases.dir`, `scripts.dir`, `run.report`, `run.reportsDir`) | Script phẳng kiểu cũ: `kit doctor` cảnh báo, `kit init --migrate` dời vào thư mục module |
+| `testcases/<MOD>/`, `scripts/<MOD>/`, `test-results/reports`, `test-results/raw` | **Có** — kit đọc / ghi theo đúng chỗ (đổi gốc bằng `testcases.dir`, `scripts.dir`, `run.report`, `run.reportsDir`) | Script phải nằm trong thư mục module: `scripts/<MOD>/<MÃ>.spec.mjs` |
 | `pages/`, `tests/`, `support/`, `testdata/`, `README.md` | Khuyến nghị — là phần của dự án | Khi sinh script / triage, AI chỉ được ghi `scripts/`, `pages/` (`scripts.allowedPaths`), không sửa TC đã duyệt; repo có cấu trúc riêng thì khai ở `scripts.guide` |
 
-Mọi đường dẫn trong cấu hình tính từ **gốc repo dự án**, không phải từ `e2e/`. `kit init` còn tạo vỏ lệnh/agent trong
-`.claude/`, khối cầu nối trong `CLAUDE.md`/`AGENTS.md` ([10 §2](10-quy-trinh.md)) và thêm `/.ai-kit`,
-`/e2e/test-results/` vào `.gitignore`. Playwright xoá `outputDir` mỗi lần chạy, nên đặt nó ở thư mục con
+Mọi đường dẫn trong cấu hình tính từ **gốc repo dự án**, không phải từ `e2e/`. `kit init` còn ghi `.claude/settings.json`
+(plugin `kit`, luật deny), khối cầu nối trong `CLAUDE.md` ([10 §2](10-quy-trinh.md)) và thêm `/e2e/test-results/` vào
+`.gitignore`. Playwright xoá `outputDir` mỗi lần chạy, nên đặt nó ở thư mục con
 `e2e/test-results/playwright`.
 
 - Dự án **dùng** TAF, TAF không biết gì về dự án. Phát hành theo tag, dự án ghim phiên bản.
@@ -88,7 +90,7 @@ Mọi đường dẫn trong cấu hình tính từ **gốc repo dự án**, khô
 
 ## 4. Phần TAF của `ai-kit.yml`
 
-Khoá trùng mặc định có thể bỏ. Lớp quy trình (`language`, `guides`, `spec.status`, `progress`, `stack`…) và cách chuyển từ `taf.config.yml` 1.x: [11](11-cau-hinh.md).
+Khoá trùng mặc định có thể bỏ. Lớp quy trình (`language`, `guides`, `spec.status`, `progress`, `stack`…) và các lệnh: [11](11-cau-hinh.md).
 
 ```yaml
 version: 2
@@ -132,8 +134,8 @@ tracker: { adapter: github, labels: [bug, e2e] }
 | `kit e2e` | Điểm cắm CI sau deploy / hằng đêm và chạy ở máy: (gate) → chờ app → chạy → báo cáo, tách lỗi dựng dữ liệu → issue theo dõi môi trường ([04](04-ci-workflow.md)) | Không |
 | `kit report`, `kit file-bugs` | Báo cáo theo feature, bug theo fingerprint (test đã phân loại) | Không |
 | `kit init`, `doctor`, `context`, `next-code`, `approve` | Nhúng kit, kiểm việc nhúng, ngữ cảnh cho AI, cấp mã ([11 §4](11-cau-hinh.md)) | Không |
-| `prompts/testcase.md`, `script.md`, `triage.md` | Spec → TC, TC → script, phân loại lỗi — chạy ở máy (`/testcase`, `/e2e-script`, `/e2e-triage`) | Có |
-| `process/*.md` | Quy trình `/spec` … `/ship`, agent tester/reviewer ([10](10-quy-trinh.md)) | Có |
+| `prompts/testcase.md`, `script.md`, `triage.md` | Spec → TC, TC → script, phân loại lỗi — chạy ở máy (`/kit:testcase`, `/kit:e2e-script`, `/kit:e2e-triage`) | Có |
+| `process/*.md` | Quy trình `/kit:spec` … `/kit:ship`, agent tester/reviewer ([10](10-quy-trinh.md)) | Có |
 
 Mọi bước quyết định là code tất định. Ở phần TAF, AI chỉ dùng ở ba chỗ cần đọc hiểu.
 

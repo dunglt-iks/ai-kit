@@ -20,7 +20,7 @@ Kit **không biết và không gọi** API nào của app. Việc dựng dữ li
 |---|---|---|---|
 | 1 | Persona, dữ liệu có sẵn trên môi trường | Test chỉ đọc | App không phải làm gì; test sửa dữ liệu dùng chung dễ đụng nhau |
 | 2 | **API công khai của app** (vd QTV tạo user qua API quản trị), gọi bằng persona đủ quyền | Mặc định để tạo dữ liệu | Không cần cửa hậu; dữ liệu đi đúng luồng thật |
-| 3 | API riêng cho test (`/api/test/*`) | App không có API công khai tương ứng | App phải làm thêm (qua `/dev`, người duyệt); chỉ bật ở môi trường test, **không bao giờ ở production** |
+| 3 | API riêng cho test (`/api/test/*`) | App không có API công khai tương ứng | App phải làm thêm (qua `/kit:dev`, người duyệt); chỉ bật ở môi trường test, **không bao giờ ở production** |
 | 4 | Giao diện | Chính luồng đó là thứ TC đang kiểm | Chậm, dễ vỡ; dọn bằng `fx.track` |
 | — | Ghi thẳng vào DB | Tránh | Dính chặt schema; thường không có quyền vào DB của dev / staging |
 
@@ -29,10 +29,10 @@ khác, lỗi xảy ra trong fixture được kit báo riêng là **lỗi dựng 
 feature đang test chưa được kiểm, không kết luận feature hỏng — sửa fixture / môi trường rồi chạy lại ([07](07-bug-reporting.md)).
 
 **Ai viết fixture, khi nào.** Fixture nền (persona, đăng nhập, tài khoản test) do dev / QA dựng khi lập bộ khung test.
-Fixture cho loại dữ liệu mới: AI viết ở `/e2e-script` khi TC cần dữ liệu chưa có fixture ("Tiền điều kiện", "Dữ liệu
+Fixture cho loại dữ liệu mới: AI viết ở `/kit:e2e-script` khi TC cần dữ liệu chưa có fixture ("Tiền điều kiện", "Dữ liệu
 kiểm tra"), lấy API theo thứ tự: fixture đã có (dùng lại) → mục API trong FSD → route trong code BE; người duyệt cùng
 script. Danh sách fixture và cách dùng ghi trong `scripts.guide` (vd `e2e/README.md`). Không có API phù hợp → AI **dừng,
-hỏi người** (thêm API test qua `/dev`, dựng qua giao diện, hay dùng dữ liệu có sẵn) — AI không sửa code app ở bước viết
+hỏi người** (thêm API test qua `/kit:dev`, dựng qua giao diện, hay dùng dữ liệu có sẵn) — AI không sửa code app ở bước viết
 script.
 
 **Script không gọi API ghi trực tiếp.** `check-script` (và gate) báo lỗi khi script tự gọi `request.post / put / patch /

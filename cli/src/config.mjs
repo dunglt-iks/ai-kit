@@ -1,5 +1,5 @@
 // @ts-check
-// Đọc ai-kit.yml (hoặc taf.config.yml v1) của dự án và điền giá trị mặc định. Xem docs/11-cau-hinh.md.
+// Đọc ai-kit.yml của dự án và điền giá trị mặc định. Xem docs/11-cau-hinh.md.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -12,8 +12,8 @@ export { TafError };
 
 /**
  * Giá trị mặc định của ai-kit.yml (version 2). Hai lớp:
- * - quy trình (language, project, agents, guides, docs, spec, progress, stack, review): lệnh /spec… đọc qua `kit context`;
- * - TAF (testcases, scripts, run, trigger, gate, tracker): y như taf.config.yml v1.
+ * - quy trình (language, project, agents, guides, docs, spec, progress, stack, review): lệnh /kit:spec… đọc qua `kit context`;
+ * - TAF (testcases, scripts, run, trigger, gate, tracker): lệnh TAF và điểm cắm CI đọc.
  * Xem docs/11-cau-hinh.md.
  */
 const DEFAULTS = {
@@ -24,8 +24,7 @@ const DEFAULTS = {
     remote: "origin",
     prTool: "gh", // gh | none (in mô tả PR để người tự tạo)
   },
-  agents: ["claude"], // công cụ AI cần cài vỏ lệnh + khối cầu nối: claude, agents-md (adapters/agent/)
-  kitRef: "v2", // phiên bản ai-kit (tag) — vỏ lệnh clone đúng bản này vào .ai-kit/ khi máy chưa có
+  agents: ["claude"], // công cụ AI kit nối vào (plugin + khối cầu nối): claude (adapters/agent/)
   guides: [], // lớp kỹ thuật của repo (CLAUDE.md, AGENTS.md…): AI đọc trước khi làm; kit init tự dò
   docs: {
     author: "BA Team", // cột Tác giả trong Change Log
@@ -43,7 +42,7 @@ const DEFAULTS = {
     plansDir: "docs/plans",
     templates: {}, // ghi đè khuôn: { fsd, prd, plan, prototype } — mặc định lấy trong kit
     wireframeWidth: 76,
-    prototype: true, // false: bỏ bước /prototype
+    prototype: true, // false: bỏ bước /kit:prototype
   },
   progress: {
     file: null, // tuỳ chọn: bảng tiến độ triển khai theo mã
@@ -54,7 +53,7 @@ const DEFAULTS = {
     },
   },
   stack: {
-    checks: [], // [{ name, run, cwd? }] — /dev, /ship chạy theo thứ tự
+    checks: [], // [{ name, run, cwd? }] — /kit:dev, /kit:ship chạy theo thứ tự
     traceability: { searchPaths: ["src"] }, // nơi grep mã truy vết trong code + test
     env: null, // mô tả ngắn môi trường cần chạy để test e2e ở máy
   },
@@ -70,7 +69,7 @@ const DEFAULTS = {
     guide: null, // hướng dẫn viết test của dự án, Claude đọc khi sinh script
     // Khi sinh script / triage, AI chỉ được ghi vào đây. Test case không nằm trong danh sách: check-paths chỉ chấp nhận
     // TC nháp hoặc TC đã duyệt còn khớp approvedHash — AI không được sửa TC đã duyệt.
-    // e2e/support: fixture dựng dữ liệu loại mới (/e2e-script) — người duyệt cùng script
+    // e2e/support: fixture dựng dữ liệu loại mới (/kit:e2e-script) — người duyệt cùng script
     allowedPaths: ["e2e/scripts/**", "e2e/pages/**", "e2e/support/**"],
     forbid: [], // regex cấm xuất hiện trong script sinh ra (vd locator ngoài page object)
     lint: null, // lệnh kiểm của dự án sau khi sinh (vd tsc --noEmit)
@@ -115,39 +114,14 @@ const DEFAULTS = {
 /** Khoá lồng nhau được trộn sâu một tầng nữa. */
 const NESTED = { spec: ["status", "templates"], progress: ["values"], stack: ["traceability"] };
 
-/** Vị trí file cấu hình, tìm theo thứ tự. Hai file sau là TAF 1.x (version: 1), vẫn đọc được. */
-export const CONFIG_FILES = ["ai-kit.yml", "e2e/taf.config.yml", "taf.config.yml"];
+/** Vị trí file cấu hình (gốc dự án). */
+export const CONFIG_FILES = ["ai-kit.yml"];
 
 /** @param {string} root @returns {string|null} */
 export function findConfig(root) {
   for (const f of CONFIG_FILES)
     if (fs.existsSync(path.join(root, f))) return path.join(root, f);
   return null;
-}
-
-/** taf.config.yml v1 → dạng v2. v1 không có lớp quy trình; mặc định cũ của v1 được giữ. */
-export function fromV1(raw) {
-  // TAF 1.x chưa có lớp quy trình: không đòi vỏ lệnh/khối cầu nối cho tới khi chuyển sang ai-kit.yml.
-  const out = { agents: [], ...raw, version: 2 };
-  const spec = { ...(raw.spec || {}) };
-  spec.featurePattern ??= "(?:[A-Z]{2,4}|CORE-C\\d{2})-F\\d{2}";
-  if ("approvedValue" in spec) {
-    spec.status = { ...(spec.status || {}), approved: spec.approvedValue };
-    delete spec.approvedValue;
-  }
-  out.spec = spec;
-  out.trigger = { statusDone: ["Hoàn thành"], ...(raw.trigger || {}) };
-  // run.targets.<tên>.test (1.x) → run.command; start/stop là việc của CI dự án
-  const targets = raw.run?.targets || {};
-  const first = targets.ci || targets[Object.keys(targets)[0]];
-  if (first?.test) {
-    const { targets: _t, ...run } = raw.run;
-    out.run = { ...run, command: first.test, ...(first.cwd ? { cwd: first.cwd } : {}) };
-  }
-  // Tên cũ (v0.1): scripts.personas → testcases.personas
-  if (raw.scripts?.personas && !raw.testcases?.personas)
-    out.testcases = { ...(raw.testcases || {}), personas: raw.scripts.personas };
-  return out;
 }
 
 /**
@@ -198,14 +172,9 @@ export function loadConfig(opts = {}) {
     throw new TafError(
       `Không thấy file cấu hình ${file || CONFIG_FILES.map((f) => path.join(root, f)).join(" hoặc ")}. Chạy: kit init`,
     );
-  let raw = YAML.parse(fs.readFileSync(file, "utf8")) || {};
-  const sourceVersion = raw.version;
-  if (raw.version === 1) raw = fromV1(raw);
-  else if (raw.version !== 2)
-    throw new TafError(`${file}: chỉ hỗ trợ version: 2 (ai-kit.yml) hoặc 1 (taf.config.yml)`);
-  const cfg = resolveConfig(raw, root, file);
-  cfg.sourceVersion = sourceVersion;
-  return cfg;
+  const raw = YAML.parse(fs.readFileSync(file, "utf8")) || {};
+  if (raw.version !== 2) throw new TafError(`${file}: chỉ hỗ trợ version: 2`);
+  return resolveConfig(raw, root, file);
 }
 
 /**

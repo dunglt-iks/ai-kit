@@ -20,7 +20,7 @@ import { mergeResults } from "../src/run.mjs";
 const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "fixtures",
-  "repo-v1",
+  "repo-taf",
 );
 
 async function project() {

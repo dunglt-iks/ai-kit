@@ -11,9 +11,8 @@ try {
 } catch (e) {
   if (e?.code !== "ERR_MODULE_NOT_FOUND") throw e;
   console.error(
-    `kit: chưa cài thư viện của kit (yaml) ở ${KIT}.\n` +
-      `  Chạy: bash ${path.join(KIT, "setup.sh")}\n` +
-      `  (hoặc chỉ cài thư viện: npm ci --prefix ${KIT} --omit=dev)`,
+    `kit: thiếu thư viện của kit (yaml) ở ${KIT}.\n` +
+      "  Gói ai-kit cài qua npm (devDependencies) thì chạy lại npm install ở dự án; bản clone repo kit thì npm ci trong đó.",
   );
   process.exit(2);
 }

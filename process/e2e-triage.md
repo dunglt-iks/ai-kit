@@ -1,4 +1,4 @@
-# Quy trình /e2e-triage — phân loại test e2e fail, sửa script, ghi bug app
+# Quy trình /kit:e2e-triage — phân loại test e2e fail, sửa script, ghi bug app
 
 Đầu vào: trống (lấy lần chạy gần nhất ở máy), hoặc link / số lần chạy CI (`gh run`), hoặc số PR. CI không phân
 loại test fail (không có bước AI trên CI) — việc đó làm ở đây. Bước này thuộc TAF, ràng buộc: **không sửa code ứng
@@ -7,7 +7,7 @@ test case**.
 
 ## Bước 0 — Nạp quy định
 
-`node .ai-kit/cli/bin/kit.mjs context` (gọi tắt `kit`) → đọc `.ai-kit/RULES.md` (§5) → đọc `scripts.guide`.
+`npx --no kit context` (gọi tắt `kit`) → đọc `<kit>/RULES.md` (§5) → đọc `scripts.guide`.
 
 ## Các bước
 
@@ -18,13 +18,13 @@ test case**.
      `results.json` trong đó và chép đè lên `<report>` (thư mục này nằm trong `.gitignore`); ảnh / trace giữ ở thư
      mục tạm — đường dẫn `attachments` trong report là của máy CI, tìm lại file theo tên.
    - Lần chạy CI dùng code của commit nào thì `git log -1 <sha>`; code ở máy khác commit đó → nói rõ khi kết luận.
-2. **Phân loại:** đọc `.ai-kit/prompts/triage.md` và làm đúng theo với môi trường đã xác định — kể cả ghi `triage.json`.
+2. **Phân loại:** đọc `<kit>/prompts/triage.md` và làm đúng theo với môi trường đã xác định — kể cả ghi `triage.json`.
    Ngoại lệ khi kết quả lấy từ CI:
    - Chỉ chạy lại (`kit e2e <mã> --no-gate --merge --base-url <địa chỉ>`) nếu truy cập được app tương ứng từ máy
      (bật theo `stack.env`, hoặc môi trường dev dùng chung). Không được → phân loại theo log, ảnh, trace; **không** sửa script khi chưa chạy lại được, ghi rõ trong báo cáo.
    - Không tự đổi `results.json` ngoài lệnh `kit e2e … --merge`.
 3. **Xem lại:** `kit report` → bảng kết quả kèm loại từng test fail. Trình bày cho người dùng: mỗi `app-bug` một dòng
-   (tóm tắt sẽ thành issue), script đã sửa, `env` / `flaky` / `tc-wrong` kèm việc đề xuất (`tc-wrong` → `/testcase <mã>`,
+   (tóm tắt sẽ thành issue), script đã sửa, `env` / `flaky` / `tc-wrong` kèm việc đề xuất (`tc-wrong` → `/kit:testcase <mã>`,
    người duyệt lại).
 4. **Ghi bug (tracker):** chỉ khi người dùng đồng ý. Tracker `github` cần biến môi trường:
    `GITHUB_TOKEN=$(gh auth token) GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner -q .nameWithOwner)`.
@@ -35,4 +35,4 @@ test case**.
    kiểm lại bằng `kit check-paths` (không `--triage`). **Hỏi** trước khi
    commit (`test(e2e): sửa script sau triage`) và trước khi push.
 6. **Báo lại:** số test fail theo loại, script đã sửa, bug đã ghi (số issue), việc còn lại — `app-bug` gợi ý
-   `/dev #<issue>` để sửa code.
+   `/kit:dev #<issue>` để sửa code.

@@ -16,14 +16,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - run: npm ci --no-audit --no-fund
       - run: npm test
-      - name: setup.sh trên repo trống (cài kit một lệnh), chạy lại lần hai, rồi doctor
+      - name: Cài gói kit vào repo trống (như dự án cài từ git tag), kit init hai lần, rồi doctor
         run: |
-          d="$RUNNER_TEMP/empty" && mkdir -p "$d" && cd "$d" && git init -q
-          ln -s "$GITHUB_WORKSPACE" .ai-kit
-          bash .ai-kit/setup.sh --yes
-          bash .ai-kit/setup.sh --yes
-          test -f ai-kit.yml && test -f .claude/commands/spec.md
-          node .ai-kit/cli/bin/kit.mjs doctor
+          pkg="$(npm pack --silent --pack-destination "$RUNNER_TEMP")"
+          d="$RUNNER_TEMP/empty" && mkdir -p "$d" && cd "$d" && git init -q && npm init -y >/dev/null
+          npm install -D --no-audit --no-fund "$RUNNER_TEMP/$pkg"
+          npx --no kit init
+          npx --no kit init
+          test -f ai-kit.yml && test -f CLAUDE.md
+          node -e 'const s=require("./.claude/settings.json"); if (!s.enabledPlugins["kit@ai-kit"]) process.exit(1)'
+          npx --no kit doctor

@@ -25,7 +25,7 @@ function approved(text) {
 const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "fixtures",
-  "repo-v1",
+  "repo-taf",
 );
 
 /** Bản sao fixture vào thư mục tạm, TC được điền specHash thật. */
@@ -157,7 +157,7 @@ test("gate: TC đủ điều kiện nhưng chưa có script → chặn; có scri
   const { sourceHeader, scriptPath } = await import("../src/scripts.mjs");
   let r = gateFeature(cfg, "XX-F01");
   assert.equal(r.ok, false);
-  assert.match(r.problems.join("\n"), /không có script — chạy `\/e2e-script XX-F01` ở máy/);
+  assert.match(r.problems.join("\n"), /không có script — chạy `\/kit:e2e-script XX-F01` ở máy/);
 
   cfg.gate.requireScript = false;
   assert.equal(gateFeature(cfg, "XX-F01").ok, true);

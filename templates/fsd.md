@@ -1,8 +1,8 @@
 # Khuôn viết FSD — màn hình, luồng nghiệp vụ, mô hình dữ liệu
 
-> Tài liệu tham chiếu cho `/spec`, `/prototype` và người viết FSD. Không phải tài liệu yêu cầu, không có mã,
-> không có Change Log. Quy tắc tổng thể: `.ai-kit/RULES.md` §2. Ví dụ dùng module giả `DM`
-> (đơn hàng), ví dụ hoàn chỉnh ở `.ai-kit/docs/13-tai-lieu-spec.md` §6. Dự án có thể ghi đè khuôn này qua
+> Tài liệu tham chiếu cho `/kit:spec`, `/kit:prototype` và người viết FSD. Không phải tài liệu yêu cầu, không có mã,
+> không có Change Log. Quy tắc tổng thể: `node_modules/ai-kit/RULES.md` §2. Ví dụ dùng module giả `DM`
+> (đơn hàng), ví dụ hoàn chỉnh ở `node_modules/ai-kit/docs/13-tai-lieu-spec.md` §6. Dự án có thể ghi đè khuôn này qua
 > `spec.templates.fsd`. Tên mục viết theo `language` của dự án.
 
 ## 0. Đầu file FSD
@@ -43,7 +43,7 @@ Sau các feature là các mục dùng chung của module: **Mô hình dữ liệ
 
 - **Mục Edge Cases riêng**: tình huống nghiệp vụ là nhánh `A#`/`E#` của luồng, tình huống giao diện là "Quy tắc
   hiển thị" của màn hình, tình huống do module khác gọi tới nằm ở mục điểm tích hợp.
-- **Mục API Endpoints**: hợp đồng API thiết kế ở kế hoạch của `/dev`. Ràng buộc nghiệp vụ API phải giữ ghi ở
+- **Mục API Endpoints**: hợp đồng API thiết kế ở kế hoạch của `/kit:dev`. Ràng buộc nghiệp vụ API phải giữ ghi ở
   mục Ràng buộc của thực thể.
 
 Người đọc đi từ màn hình, bấm link trong bảng thành phần để xuống luồng; luồng có dòng "Kích hoạt từ" link ngược
@@ -95,7 +95,7 @@ Quy tắc viết:
 - **Cột Luồng** là cầu nối duy nhất sang nghiệp vụ. Không mô tả lại quy tắc nghiệp vụ trong cột Mô tả — dẫn mã.
 - **Quy tắc hiển thị**: ẩn/hiện theo quyền hoặc dữ liệu, cảnh báo, trạng thái rỗng, cuộn, hành vi giao diện thuần.
   Không có thì bỏ bảng.
-- Wireframe do `/spec` vẽ và duyệt cùng spec. `/prototype` dựng HTML từ đây; thay đổi giao diện phát sinh khi làm
+- Wireframe do `/kit:spec` vẽ và duyệt cùng spec. `/kit:prototype` dựng HTML từ đây; thay đổi giao diện phát sinh khi làm
   prototype được đồng bộ ngược về 4 phần này.
 
 ## 3. Luồng nghiệp vụ
@@ -131,7 +131,7 @@ Mỗi user story là một luồng, **dùng luôn mã US**. Một US có hai lu�
 Quy tắc viết:
 
 - **Chỉ hành vi quan sát được.** Không viết "mở transaction", "gọi API X", "bấm nút xanh". Chi tiết kỹ thuật thuộc
-  mô hình dữ liệu hoặc kế hoạch của `/dev`; chi tiết điều khiển thuộc màn hình.
+  mô hình dữ liệu hoặc kế hoạch của `/kit:dev`; chi tiết điều khiển thuộc màn hình.
 - **Mỗi bước một hành động.** Câu có "và/hoặc" nối hai việc khác nhau thì tách bước.
 - **Rẽ nhánh (`A#`) vs ngoại lệ (`E#`):** `A#` là nhánh do **quy tắc nghiệp vụ** (kể cả khi bị chặn). `E#` là bị từ
   chối do **quyền / cách ly dữ liệu**, hoặc lỗi không thuộc nghiệp vụ. Mỗi nhánh ghi rõ rẽ ra **tại bước nào**.
@@ -160,10 +160,10 @@ Mở đầu bằng **sơ đồ ER** (Mermaid `erDiagram`, chỉ vẽ quan hệ, 
 
 - Cột hệ thống dùng chung (id, thời điểm tạo, xoá mềm…) ghi một lần ở đầu mục. Thuộc tính tính ra (không lưu) ghi
   thành bảng "Thuộc tính suy ra".
-- **Kiểu ở mức nghiệp vụ**, không phải kiểu của CSDL — kiểu cụ thể, độ dài, index chốt ở `/dev`.
+- **Kiểu ở mức nghiệp vụ**, không phải kiểu của CSDL — kiểu cụ thể, độ dài, index chốt ở `/kit:dev`.
 - **Chưa đặc tả thì ghi `?`**, không tự đoán, và đưa vào mục câu hỏi còn mở của PRD.
 - **Không ghi lịch sử phiên bản trong ô bảng** — đó là việc của Change Log.
-- Quyết định cài đặt để ngỏ gom vào mục **"Để `/dev` chốt"** ở cuối.
+- Quyết định cài đặt để ngỏ gom vào mục **"Để `/kit:dev` chốt"** ở cuối.
 
 ## 5. Điểm tích hợp
 

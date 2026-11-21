@@ -2,9 +2,9 @@
 
 Bạn là kỹ sư kiểm thử. Nhiệm vụ: viết (hoặc đồng bộ) **test case e2e dạng markdown** cho một feature, từ spec của dự án. Test case để **người review đọc và duyệt**, rồi mới sinh script. Bạn **không viết code**.
 
-Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Framework nằm ở `.ai-kit/`. Định dạng đầy đủ: `.ai-kit/docs/02-testcase-format.md`, đọc trước nếu chưa đọc.
+Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Framework nằm ở `<kit>/`. Định dạng đầy đủ: `<kit>/docs/02-testcase-format.md`, đọc trước nếu chưa đọc.
 
-Lệnh CLI: `node .ai-kit/cli/bin/kit.mjs <lệnh>`, gọi tắt là `kit`.
+Lệnh CLI: `npx --no kit <lệnh>`, gọi tắt là `kit`.
 
 ## Đầu vào
 

@@ -1,20 +1,20 @@
-# Quy trình /prototype — HTML tĩnh từ màn hình trong spec
+# Quy trình /kit:prototype — HTML tĩnh từ màn hình trong spec
 
 Đầu vào: đường dẫn file spec + mã (feature hoặc module). Prototype là bản minh hoạ UI/UX **tĩnh**, dựng từ màn
 hình đã có trong spec, để bấm thử những gì wireframe text chưa cho cảm giác (kéo-thả, chuyển tab, hộp thoại,
-ẩn/hiện) trước khi `/dev` viết code thật. Prototype **không** là nguồn sự thật — spec luôn thắng.
+ẩn/hiện) trước khi `/kit:dev` viết code thật. Prototype **không** là nguồn sự thật — spec luôn thắng.
 
 ## Bước 0 — Nạp hai lớp quy định
 
-`node .ai-kit/cli/bin/kit.mjs context` → đọc `guides` (bỏ qua file `kit context` đánh dấu "công cụ đã tự nạp") (khuôn giao diện, thành phần dùng chung của repo nếu có)
-→ đọc `.ai-kit/RULES.md`. `spec.prototype` là false thì báo dự án không dùng bước này và dừng.
+`npx --no kit context` → đọc `guides` (bỏ qua file `kit context` đánh dấu "công cụ đã tự nạp") (khuôn giao diện, thành phần dùng chung của repo nếu có)
+→ đọc `<kit>/RULES.md`. `spec.prototype` là false thì báo dự án không dùng bước này và dừng.
 
 ## Giai đoạn 1 — Đọc spec, kiểm đầu vào
 
 - Đọc đúng tài liệu + mã được truyền vào (PRD + FSD của module), và khuôn `spec.templates.fsd` phần màn hình,
   luồng.
 - Mỗi màn hình trong phạm vi phải đủ 4 phần: tóm tắt, **wireframe text**, bảng thành phần, quy tắc hiển thị.
-  Thiếu wireframe hoặc thiếu luồng/tiêu chí kiểm chứng được → **DỪNG**, yêu cầu chạy `/spec` trước. Lệnh này
+  Thiếu wireframe hoặc thiếu luồng/tiêu chí kiểm chứng được → **DỪNG**, yêu cầu chạy `/kit:spec` trước. Lệnh này
   không tự vẽ bố cục, không tự đoán yêu cầu.
 - Trạng thái spec **không chặn** lệnh này (nháp hay đã duyệt đều được). Ghi nhận trạng thái từng mã (`kit spec
   <mã>`) — nó quyết định cách đồng bộ ngược ở Giai đoạn 3.
@@ -34,7 +34,7 @@ hình đã có trong spec, để bấm thử những gì wireframe text chưa ch
 | Loại thay đổi | Ví dụ | Xử lý |
 |---|---|---|
 | **Giao diện** — bố cục, thêm/bớt/đổi thành phần, quy tắc hiển thị | dời nút, gộp bộ lọc vào menu | Sửa phần màn hình trong spec (wireframe, bảng thành phần, quy tắc hiển thị) cho khớp HTML; wireframe vẫn đúng khuôn |
-| **Nghiệp vụ** — nhánh luồng, quy tắc, trường dữ liệu | cần hộp xác nhận trước khi xoá | **Không sửa spec, không đưa vào HTML.** Ghi lại, đề xuất `/spec` |
+| **Nghiệp vụ** — nhánh luồng, quy tắc, trường dữ liệu | cần hộp xác nhận trước khi xoá | **Không sửa spec, không đưa vào HTML.** Ghi lại, đề xuất `/kit:spec` |
 | Thuần thẩm mỹ — màu, khoảng cách, icon | | Chỉ ở HTML |
 
 Đã sửa spec thì theo trạng thái mã (RULES §2.2, §2.3):
@@ -53,11 +53,11 @@ không bao giờ đặt đã duyệt, không tự sửa dòng dấu `<!-- ai-kit
    mục nội dung đưa vào phần trình bày dưới đây.
 
 Trình bày rồi **DỪNG**: đường dẫn HTML + màn/luồng/nhánh bấm thử được; kết quả `kit check-prototype` và kết quả
-đối chiếu của spec-reviewer; phần spec đã sửa (trích đúng thay đổi); thay đổi nghiệp vụ phát hiện mà chưa làm, kèm đề xuất `/spec`.
+đối chiếu của spec-reviewer; phần spec đã sửa (trích đúng thay đổi); thay đổi nghiệp vụ phát hiện mà chưa làm, kèm đề xuất `/kit:spec`.
 
 ## Sau khi người dùng xem xong
 
-Duyệt là việc của người, bằng lệnh: `node .ai-kit/cli/bin/kit.mjs approve <mã> --prototype` (và
+Duyệt là việc của người, bằng lệnh: `npx --no kit approve <mã> --prototype` (và
 `kit approve <mã>` nếu spec còn nháp). Bạn không tự chạy khi người dùng chưa nêu rõ mã. Duyệt prototype không
-thay cho duyệt spec, và ngược lại. Khi `kit ready <mã>` qua: `/testcase <mã>` → người duyệt TC (`kit approve <mã> --testcase`) →
-`/e2e-script <mã>` → `/dev <file> <mã>`.
+thay cho duyệt spec, và ngược lại. Khi `kit ready <mã>` qua: `/kit:testcase <mã>` → người duyệt TC (`kit approve <mã> --testcase`) →
+`/kit:e2e-script <mã>` → `/kit:dev <file> <mã>`.

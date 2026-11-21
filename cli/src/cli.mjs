@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { loadProject, rel, TafError } from "./config.mjs";
 import { gate, gateMarkdown, gateText } from "./gate.mjs";
 import { fileBugs } from "./bugs.mjs";
-import { initProject } from "./init.mjs";
+import { initProject, kitRelease } from "./init.mjs";
 import { buildContext, contextText, doctor, nextCode } from "./context.mjs";
 import { approve, readyFeature } from "./approve.mjs";
 import { e2e, gatePr, publishReport } from "./e2e.mjs";
@@ -28,7 +28,6 @@ import {
   checkPaths,
   checkScript,
   listScripts,
-  migrateScripts,
   planGen,
   rehash,
 } from "./scripts.mjs";
@@ -41,11 +40,10 @@ import {
 const HELP = `kit <lệnh> [tuỳ chọn]
 
 Nhúng kit, quy trình:
-  init                 Nhúng / cập nhật ai-kit trong dự án (cwd hoặc --root), chạy lại được: ai-kit.yml (dò guides;
-       [--force]       chuyển từ e2e/taf.config.yml nếu có), vỏ lệnh/agent, khối cầu nối, .gitignore; rồi tự kiểm
-       [--dry-run]     (như doctor). Không đụng .github/. --force: thay cả lệnh trùng tên của repo
-       [--migrate]     Dời script phẳng (scripts/<MÃ>.spec.mjs) vào scripts/<module>/, sửa import tương đối
-  doctor               Kiểm việc nhúng: cấu hình, guides, vỏ lệnh, khối cầu nối, spec adapter
+  init                 Nhúng / cập nhật ai-kit trong dự án (cwd hoặc --root), chạy lại được (cả sau khi nâng gói ai-kit):
+       [--dry-run]     ai-kit.yml (dò guides), .claude/settings.json (plugin kit ghim đúng bản, deny kit approve), khối
+                       cầu nối, .gitignore; rồi tự kiểm (như doctor). Không đụng .github/
+  doctor               Kiểm việc nhúng: cấu hình, guides, settings của công cụ AI, khối cầu nối, spec adapter
   context              In cấu hình đã giải (hai lớp quy định) cho AI đọc ở bước 0  [--json] [--scope <module>]
   approve <mã…>        Người duyệt spec (ghi "<đã duyệt> (người, ngày)" vào cột Spec của PRD)
        [--prototype]   Duyệt prototype (cột Prototype + dấu hash màn hình vào PROTOTYPE-*.html)
@@ -79,7 +77,7 @@ Nhúng kit, quy trình:
 
 TAF (test case, script, báo cáo, bug):
   spec <mã>            In cấu trúc spec của feature: trạng thái, hash, US/nhánh/SCR cần phủ
-       --json          In JSON (dùng cho prompt /testcase)
+       --json          In JSON (dùng cho prompt /kit:testcase)
        --hash          Chỉ in specHash
   lint-tc [file…]      Kiểm cú pháp TC (mặc định: mọi file trong testcases.dir)
   gate <mã…>           Kiểm TC: có, đã duyệt, phủ đủ, không lỗi thời; script có và khớp TC (gate.requireScript)
@@ -87,7 +85,7 @@ TAF (test case, script, báo cáo, bug):
   plan-gen <mã…>       Feature nào cần sinh (lại) script: TC đã duyệt, script chưa có hoặc lệch hash  [--json]
   check-script [mã…]   Script khớp TC: @taf-source, đủ test cho mỗi TC, không mẫu cấm (mặc định: mọi script)
   check-paths          File đã đổi (so với --base, mặc định HEAD) phải nằm trong scripts.allowedPaths
-       [--base <ref>]  [--triage]: fixture (run.setupPaths) bị đổi cũng là lỗi — /e2e-triage hỏi người trước
+       [--base <ref>]  [--triage]: fixture (run.setupPaths) bị đổi cũng là lỗi — /kit:e2e-triage hỏi người trước
   lint-script          Chạy lệnh scripts.lint của dự án
   rehash <mã>          Ghi lại hash @taf-source sau khi sửa tay script hoặc TC
   report [mã…]         Đọc JSON report (run.report) → kết quả theo feature (kèm triage.json nếu có), ghi
@@ -134,8 +132,6 @@ const { values: opt, positionals } = parseArgs({
     "close-fixed": { type: "boolean" },
     triage: { type: "boolean" },
     "dry-run": { type: "boolean" },
-    force: { type: "boolean" },
-    migrate: { type: "boolean" },
     type: { type: "string" },
     scope: { type: "string" },
     prototype: { type: "boolean" },
@@ -168,16 +164,11 @@ async function main() {
   }
   if (cmd === "init") {
     const root = path.resolve(opt.root || process.cwd());
-    const res = await initProject(root, { force: opt.force, dryRun: opt["dry-run"] });
+    const res = await initProject(root, { dryRun: opt["dry-run"] });
     for (const r of res)
       console.log(
-        `${{ create: "+", overwrite: "!", keep: "=", update: "~" }[r.action]} ${r.file}${r.note ? ` (${r.note})` : ""}`,
+        `${{ create: "+", keep: "=", update: "~" }[r.action]} ${r.file}${r.note ? ` (${r.note})` : ""}`,
       );
-    if (opt.migrate) {
-      const moved = migrateScripts(await loadProject({ root }), { dryRun: opt["dry-run"] });
-      for (const m of moved) console.log(`→ ${m.from} → ${m.to}`);
-      if (!moved.length) console.log("= không có script phẳng nào cần dời");
-    }
     if (opt["dry-run"]) {
       console.log("\n(--dry-run: chưa ghi gì)");
       return 0;
@@ -188,11 +179,15 @@ async function main() {
       console.log(`${r.level === "error" ? "✘" : "⚠"} ${r.msg}`);
     const errors = checks.filter((r) => r.level === "error").length;
     console.log(errors ? `${errors} lỗi — sửa rồi chạy lại kit init` : "✓ kit đã nhúng đúng");
+    const { repo, ref } = kitRelease();
     console.log(`
-Tiếp theo: mở Claude Code, chạy /kit-adopt — AI đề xuất giá trị ai-kit.yml theo repo và chỉ chỗ hướng dẫn của repo
-mâu thuẫn với kit; duyệt rồi commit ai-kit.yml, .claude/, CLAUDE.md/AGENTS.md, .gitignore.
-CI (tuỳ repo): PR → "uses: dunglt-iks/ai-kit/actions/gate@<kitRef>"; sau deploy / hằng đêm →
-"uses: dunglt-iks/ai-kit/actions/e2e@<kitRef>" — workflow mẫu: .ai-kit/docs/04-ci-workflow.md.`);
+Tiếp theo:
+  1. Cài plugin kit cho Claude Code (mỗi người, một lần mỗi bản clone; mở Claude Code ở repo và chấp nhận tin cậy thư
+     mục trước để marketplace ai-kit được khai):  claude plugin install kit@ai-kit --scope project
+  2. Trong Claude Code chạy /kit:adopt — AI đề xuất giá trị ai-kit.yml theo repo, chỉ chỗ hướng dẫn của repo mâu thuẫn
+     với kit; duyệt rồi commit ai-kit.yml, .claude/settings.json, CLAUDE.md, .gitignore, package.json + lockfile.
+  3. CI (tuỳ repo): PR → "uses: ${repo}/actions/gate@${ref}"; sau deploy / hằng đêm → "uses: ${repo}/actions/e2e@${ref}"
+     — workflow mẫu: docs/04-ci-workflow.md của ai-kit.`);
     return errors ? 1 : 0;
   }
 

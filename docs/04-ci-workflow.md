@@ -11,17 +11,17 @@ là một lệnh và một GitHub action bọc lệnh đó:
 | **Chạy e2e / hồi quy** | `kit e2e all \| changed \| <mã>` | `actions/e2e` | Sau deploy dev / staging, hằng đêm, chạy tay | Có — địa chỉ app đã deploy |
 
 Dự án đặt hai bước này vào workflow của mình (mẫu §4). Kit không chép, không sửa workflow nào, không build, không deploy,
-và **không gọi AI trên CI** (D8): test case, script, phân loại test fail đều làm ở máy (`/testcase`, `/e2e-script`,
-`/e2e-triage`). Phạm vi giữa CI, bộ khung test và kit: [05 §1](05-environments.md).
+và **không gọi AI trên CI** (D8): test case, script, phân loại test fail đều làm ở máy (`/kit:testcase`, `/kit:e2e-script`,
+`/kit:e2e-triage`). Phạm vi giữa CI, bộ khung test và kit: [05 §1](05-environments.md).
 
 **Vì sao PR chỉ gate, không chạy e2e?** Code của PR chưa có trên dev — chạy e2e vào dev lúc đó là test code cũ. Muốn
 chạy e2e trên PR thì dự án phải dựng app cho từng PR (build trong job hoặc preview deploy), tức là kit dính vào build.
-Thay vào đó: người làm chạy `kit e2e changed` vào app ở máy trước khi push (`/ship`), CI gate PR, và e2e chạy trên dev
+Thay vào đó: người làm chạy `kit e2e changed` vào app ở máy trước khi push (`/kit:ship`), CI gate PR, và e2e chạy trên dev
 ngay sau khi PR được merge và deploy.
 
 | | Được | Mất |
 |---|---|---|
-| PR gate + e2e sau deploy (mặc định) | Nhanh (10–20 giây), không phụ thuộc hạ tầng; chặn sớm PR thiếu spec / TC / script; kit không cần biết dự án build thế nào | Lỗi hành vi lộ ra sau merge + deploy dev, sửa bằng PR khác — bù bằng `kit e2e changed` ở máy (`/ship`) |
+| PR gate + e2e sau deploy (mặc định) | Nhanh (10–20 giây), không phụ thuộc hạ tầng; chặn sớm PR thiếu spec / TC / script; kit không cần biết dự án build thế nào | Lỗi hành vi lộ ra sau merge + deploy dev, sửa bằng PR khác — bù bằng `kit e2e changed` ở máy (`/kit:ship`) |
 | E2E ngay trên PR | Bắt lỗi trước merge | Dự án dựng app / preview cho từng PR; job dài hơn. Làm được: gọi `actions/e2e` với `scope: changed`, `base-url` của bản dựng PR |
 
 ## 2. Lệnh
@@ -68,7 +68,7 @@ kit e2e <phạm vi> [tuỳ chọn]
 | `--gate` / `--no-gate` | Bật / tắt gate trước khi chạy |
 | `--close-fixed` | Đóng issue bug có test đã pass lại ([07](07-bug-reporting.md)) |
 | `--publish github` | Step summary, comment PR (khi chạy trong sự kiện PR) |
-| `--merge` | Gộp vào kết quả cũ (chạy lại một phần — `/e2e-triage` dùng) |
+| `--merge` | Gộp vào kết quả cũ (chạy lại một phần — `/kit:e2e-triage` dùng) |
 | `--shard i/n` | Chạy phần i trong n (nhiều máy song song); gộp ở job sau: `kit report --results a.json --results b.json … --strict --publish github`. Lệnh ghép thì đặt chỗ `{shard}` trong `run.command` |
 | `--fail-on test\|gate\|never` | Khi nào thoát 1: `test` (mặc định) — gate đỏ, test fail hoặc môi trường không lên; `gate` — chỉ gate; `never` |
 
@@ -89,19 +89,19 @@ kiểm, không kết luận feature hỏng ([06](06-test-data.md), [07](07-bug-r
 **không** thành bug. Đăng lên GitHub lỗi (PR từ fork, token chỉ đọc) chỉ cảnh báo. Lệnh test của dự án **không** nhận
 `GITHUB_TOKEN` / `GH_TOKEN` của kit.
 
-Ở máy dùng cùng lệnh: `kit e2e changed --base-url http://localhost:3000` trước khi push (`/ship`), `kit e2e DM-F03
---no-gate --base-url …` khi chạy thử script (`/e2e-script`), `kit e2e DM-F03 --merge --grep …` khi chạy lại (`/e2e-triage`).
+Ở máy dùng cùng lệnh: `kit e2e changed --base-url http://localhost:3000` trước khi push (`/kit:ship`), `kit e2e DM-F03
+--no-gate --base-url …` khi chạy thử script (`/kit:e2e-script`), `kit e2e DM-F03 --merge --grep …` khi chạy lại (`/kit:e2e-triage`).
 
 ## 3. Action
 
-Dùng `dunglt-iks/ai-kit/actions/<tên>@<kitRef>` — action cài kit theo đúng ref của nó. Đổi phiên bản kit: đổi `@<ref>`
-cùng lúc với `kitRef` trong `ai-kit.yml`.
+Dùng `dunglt-iks/ai-kit/actions/<tên>@<tag>` — action cài kit theo đúng ref của nó. Ghim đúng tag của gói `ai-kit`
+trong devDependencies (vd `@v3.0.0`); nâng kit thì đổi cả hai cùng lúc. Repo cần chắc hơn ghim SHA commit của tag.
 
 **`actions/gate`** — gọi `kit gate --pr --publish github`. Input: `features` (trống = lấy từ PR), `publish` (mặc định
 `true`), `fail` (mặc định `true`: bước đỏ khi gate không qua — đặt làm required check được; `false` = chỉ báo), `root`.
 Output: `features`, `ok`. Cần `actions/checkout` với `fetch-depth: 0` (kit đọc commit của PR).
 
-**`actions/e2e`** — chờ app, gọi `kit e2e`, upload thư mục kết quả làm artifact (cho `/e2e-triage <run-id>`), giữ lịch sử
+**`actions/e2e`** — chờ app, gọi `kit e2e`, upload thư mục kết quả làm artifact (cho `/kit:e2e-triage <run-id>`), giữ lịch sử
 kết quả (`run.history`) bằng cache cho `kit flaky`. Input:
 
 | Input | Mặc định | Việc |
@@ -160,8 +160,8 @@ jobs:
     concurrency: { group: "ai-kit-gate-${{ github.event.pull_request.number }}", cancel-in-progress: true }
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: dunglt-iks/ai-kit/actions/gate@v2
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: dunglt-iks/ai-kit/actions/gate@v3.0.0
 
   e2e:
     if: >-
@@ -176,10 +176,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}   # đúng commit vừa deploy
+          persist-credentials: false   # token không nằm trong .git/config cho code test đọc
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with: { node-version: 24 }
       - run: npm ci && npx playwright install --with-deps chromium     # <cài phụ thuộc test của dự án>
-      - uses: dunglt-iks/ai-kit/actions/e2e@v2
+      - uses: dunglt-iks/ai-kit/actions/e2e@v3.0.0
         with:
           scope: ${{ inputs.scope || 'all' }}
           env: ${{ env.E2E_ENV }}
@@ -196,9 +197,16 @@ Ghi chú:
 - **Lệnh, đường dẫn riêng của dự án**: cài phụ thuộc test, thư mục dự án (`root` khi `ai-kit.yml` không ở gốc repo).
 - **Bộ test lớn**: chia shard bằng matrix — mỗi job `shard: ${{ matrix.shard }}/4`, `artifact: e2e-${{ matrix.shard }}`,
   `track: 'false'`; job gộp tải các artifact rồi `kit report --results … --strict --publish github`.
-- **Hệ CI khác GitHub**: clone kit theo `kitRef`, `npm ci --prefix .ai-kit --omit=dev`, rồi gọi
-  `node .ai-kit/cli/bin/kit.mjs gate --pr` / `… e2e all --base-url … --wait 300` (không `--publish` / `--track`: kết quả
+- **Hệ CI khác GitHub**: `npm ci` của dự án (có gói `ai-kit`), rồi gọi `npx --no kit gate --pr` /
+  `npx --no kit e2e all --base-url … --wait 300` (không `--publish` / `--track`: kết quả
   ở `e2e/test-results/reports/latest.md`, `raw/result.json` và mã thoát).
+- **An toàn:**
+  - Chỉ dùng sự kiện `pull_request`, **không bao giờ `pull_request_target`**: gate nạp `ai-kit.yml` và spec adapter
+    (`./…mjs`) từ code của PR, chạy trong lúc có `GITHUB_TOKEN` quyền ghi.
+  - `persist-credentials: false` ở `actions/checkout`: kit đã bỏ `GITHUB_TOKEN` khỏi môi trường của `run.command`,
+    nhưng mặc định checkout lưu token vào `.git/config`, code test vẫn đọc được.
+  - Artifact kết quả có trace / ảnh chụp, có thể chứa cookie, token của phiên test; lỗi test được đưa vào comment PR.
+    Repo public: dùng tài khoản test riêng, không dùng dữ liệu thật.
 - **Required check**: là cài đặt branch protection của repo (cần quyền admin), kit không quản lý. Khuyến nghị: chạy
   job `gate` vài tuần, khi team quen thì đặt nó làm required check. Job `e2e` không gắn với PR nên không liên quan.
 
@@ -213,34 +221,34 @@ Lần chạy `actions/e2e` (hoặc `kit e2e --track`) cập nhật **một issue
 
 | Lần chạy | Chưa có issue mở | Đang có issue mở |
 |---|---|---|
-| Đỏ | Mở "🔴 E2E `dev` đang đỏ": danh sách test fail, lỗi dựng dữ liệu, TC chưa chạy; việc cần làm (`/e2e-triage <run-id>`) | Sửa thân theo danh sách hiện tại (giữ mốc "đỏ từ"); comment: commit, run, **mới fail**, **đã hết** |
+| Đỏ | Mở "🔴 E2E `dev` đang đỏ": danh sách test fail, lỗi dựng dữ liệu, TC chưa chạy; việc cần làm (`/kit:e2e-triage <run-id>`) | Sửa thân theo danh sách hiện tại (giữ mốc "đỏ từ"); comment: commit, run, **mới fail**, **đã hết** |
 | Xanh | — | Comment "xanh lại ở commit …", đóng |
 | Môi trường không lên, chạy một phần (`--grep`, `--shard`, `--merge`) | Không đụng | Không đụng |
 
 Issue theo dõi **không phải bug**: nó trả lời "môi trường này đỏ từ khi nào, ở những test nào". Người trực nhận việc từ
-đó, chạy `/e2e-triage <run-id>` ở máy; bug app được ghi thành issue riêng theo fingerprint ([07](07-bug-reporting.md)),
+đó, chạy `/kit:e2e-triage <run-id>` ở máy; bug app được ghi thành issue riêng theo fingerprint ([07](07-bug-reporting.md)),
 nhắc lại issue theo dõi. Lần đỏ sau khi đã đóng → mở issue mới.
 
 ## 6. Người, AI, CI làm gì
 
-**Ở máy:** `/spec` → `kit approve` → `/prototype` → `kit approve --prototype` → `/testcase` → `kit approve --testcase` →
-`/e2e-script` → `/dev` → `/ship` (`kit e2e changed` vào app ở máy). Test fail → `/e2e-triage`.
+**Ở máy:** `/kit:spec` → `kit approve` → `/kit:prototype` → `kit approve --prototype` → `/kit:testcase` → `kit approve --testcase` →
+`/kit:e2e-script` → `/kit:dev` → `/kit:ship` (`kit e2e changed` vào app ở máy). Test fail → `/kit:e2e-triage`.
 
 | Lúc | Người | AI (ở máy, người gọi) | CI (không AI) |
 |---|---|---|---|
-| Cắm vào CI (một lần) | Chép workflow mẫu §4, điền tên workflow deploy, biến URL, secret | `/kit-adopt` đề xuất `run.command`, chỗ cắm | — |
+| Cắm vào CI (một lần) | Chép workflow mẫu §4, điền tên workflow deploy, biến URL, secret | `/kit:adopt` đề xuất `run.command`, chỗ cắm | — |
 | PR | Đọc comment khi đỏ, làm theo | — | `actions/gate`: comment, nhãn chặn |
-| Gate đỏ: thiếu / lệch TC | `kit approve <mã> --testcase` sau khi đọc; push | `/testcase <mã>` | Gate lại khi push |
-| Gate đỏ: thiếu / lệch script | Xác nhận commit, push | `/e2e-script <mã>` | Gate lại khi push |
+| Gate đỏ: thiếu / lệch TC | `kit approve <mã> --testcase` sau khi đọc; push | `/kit:testcase <mã>` | Gate lại khi push |
+| Gate đỏ: thiếu / lệch script | Xác nhận commit, push | `/kit:e2e-script <mã>` | Gate lại khi push |
 | Deploy dev xong / hằng đêm | — | — | `actions/e2e`: chờ app, chạy, báo cáo, issue theo dõi, đóng bug đã hết |
-| Môi trường đỏ | Người trực: `/e2e-triage <run-id>`; quyết ghi bug; xác nhận commit | Phân loại; sửa script; ghi bug khi được đồng ý; lỗi app → `/dev #<issue>` | Lần chạy sau tự cập nhật / đóng issue theo dõi |
+| Môi trường đỏ | Người trực: `/kit:e2e-triage <run-id>`; quyết ghi bug; xác nhận commit | Phân loại; sửa script; ghi bug khi được đồng ý; lỗi app → `/kit:dev #<issue>` | Lần chạy sau tự cập nhật / đóng issue theo dõi |
 | Môi trường không lên | Kiểm deploy / địa chỉ | — | Step đỏ `env-down`, không chạy test |
 
 ## 7. Bẫy
 
 | Bẫy | Cách xử lý |
 |---|---|
-| Script sinh ở máy nhưng quên push / TC sửa sau khi sinh | Gate đỏ (thiếu script, hash lệch) kèm lệnh `/e2e-script <mã>` |
+| Script sinh ở máy nhưng quên push / TC sửa sau khi sinh | Gate đỏ (thiếu script, hash lệch) kèm lệnh `/kit:e2e-script <mã>` |
 | Checkout nông (`fetch-depth: 1`), thiếu remote | `kit gate --pr` / `kit e2e changed` báo lỗi kèm hướng dẫn: `fetch-depth: 0`; sau deploy / hằng đêm dùng `all` |
 | Test chạy bản script khác bản đã deploy | Checkout `github.event.workflow_run.head_sha` (mẫu §4) |
 | Deploy xong nhưng app chưa nhận request | `wait-timeout` (mặc định 300 giây); hết giờ → `env-down`, không báo test fail giả |

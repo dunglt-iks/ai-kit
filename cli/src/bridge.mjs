@@ -1,7 +1,6 @@
 // @ts-check
-// Khối cầu nối: đoạn ngắn kit chèn vào file hướng dẫn AI của repo (CLAUDE.md, AGENTS.md…), nằm giữa
-// hai dấu ai-kit:start / ai-kit:end. Kit chỉ sửa phần trong dấu; phần còn lại là của repo.
-// Xem docs/10-quy-trinh.md §2.
+// Khối cầu nối: đoạn ngắn kit chèn vào file hướng dẫn AI của repo (CLAUDE.md…), nằm giữa hai dấu ai-kit:start /
+// ai-kit:end. Kit chỉ sửa phần trong dấu; phần còn lại là của repo. Xem docs/10-quy-trinh.md §2.
 
 export const START = "<!-- ai-kit:start";
 export const END = "<!-- ai-kit:end -->";
@@ -14,41 +13,35 @@ const STEPS = [
   ["e2e-triage", "phân loại test e2e fail (ở máy hoặc lần chạy CI), sửa script, ghi bug app"],
   ["dev", "kế hoạch → code → test → review theo spec đã duyệt; sửa bug từ issue"],
   ["ship", "kiểm tra cuối, mở PR, theo dõi CI"],
-  ["kit-adopt", "đề xuất cấu hình ai-kit.yml khi mới nhúng kit"],
+  ["adopt", "đề xuất cấu hình ai-kit.yml khi mới nhúng kit"],
 ];
 
 /**
  * Nội dung khối cầu nối.
- * @param {'commands'|'files'} style commands: công cụ có lệnh /x (Claude Code); files: công cụ chỉ đọc file hướng dẫn
+ * @param {string} prefix tiền tố lệnh của công cụ AI (Claude Code: `/kit:`)
  */
-export function bridgeBlock(style) {
-  const steps =
-    style === "commands"
-      ? STEPS.map(([n, d]) => `- \`/${n}\` — ${d}`)
-      : STEPS.map(
-          ([n, d]) =>
-            `- ${d}: đọc \`.ai-kit/process/${n === "kit-adopt" ? "adopt" : n}.md\` và làm đúng theo`,
-        );
+export function bridgeBlock(prefix) {
+  const steps = STEPS.map(([n, d]) => `- \`${prefix}${n}\` — ${d}`);
   return `${START} — do \`kit init\` quản lý; sửa ngoài khối này -->
 ## ai-kit — quy trình spec → prototype → dev → test → ship
 
-Repo dùng ai-kit (gắn ở \`.ai-kit/\`, cấu hình \`ai-kit.yml\`). Có hai lớp quy định:
+Repo dùng ai-kit (gói \`ai-kit\` trong devDependencies, cấu hình \`ai-kit.yml\`, lệnh qua plugin \`kit\`). Có hai lớp quy định:
 
 - **Kỹ thuật** — stack, framework, cấu trúc code, lint, bảo mật, test đơn vị: theo hướng dẫn của
   repo (phần ngoài khối này và các file trong \`guides\` của \`ai-kit.yml\`).
 - **Quy trình** — tài liệu spec, mã yêu cầu, trạng thái duyệt, version, kế hoạch, test case/e2e,
-  truy vết, PR: theo \`.ai-kit/RULES.md\` và \`ai-kit.yml\`.
+  truy vết, PR: theo \`RULES.md\` của gói ai-kit và \`ai-kit.yml\`.
 
 Khi hai lớp đụng nhau: *code thế nào* theo repo; *spec, quy trình, e2e đi đường nào* theo ai-kit.
 Mâu thuẫn thật thì dừng và hỏi người dùng, không tự chọn.
 
-Trước mọi việc thuộc quy trình, chạy \`node .ai-kit/cli/bin/kit.mjs context\`. Chưa có \`.ai-kit/\` thì
-gắn kit theo \`kitRef\` trong \`ai-kit.yml\`: \`git clone --depth 1 -b <kitRef> https://github.com/dunglt-iks/ai-kit .ai-kit\`
-rồi \`npm ci --prefix .ai-kit --omit=dev\`. Duyệt spec / prototype / test case là việc của người, bằng
-\`kit approve <mã>\` (thêm \`--prototype\` / \`--testcase\`) — AI không tự đặt trạng thái đã duyệt.
+Trước mọi việc thuộc quy trình, chạy \`npx --no kit context\` (dòng \`Kit\` là thư mục gói, chứa \`RULES.md\`,
+\`process/\`). Lệnh báo thiếu \`kit\` thì dừng, nhờ người dùng \`npm install\`. Duyệt spec / prototype / test case là
+việc của người, bằng \`kit approve <mã>\` (thêm \`--prototype\` / \`--testcase\`) — AI không chạy lệnh này, không tự đặt
+trạng thái đã duyệt.
 
 ${steps.join("\n")}
-${style === "commands" ? "" : "\nCác bước gọi agent con (spec-reviewer, tester, reviewer): công cụ không có agent con thì tự đọc\n`.ai-kit/process/agents/<tên>.md` và làm như một người ngoài chưa thấy phần việc vừa làm.\n"}${END}`;
+${END}`;
 }
 
 /** Vị trí khối trong văn bản, hoặc null. */

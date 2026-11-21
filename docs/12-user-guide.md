@@ -14,7 +14,7 @@ Cách viết spec: [13](13-tai-lieu-spec.md). Thiết kế quy trình: [10](10-q
 
 ## 0. Chuẩn bị (một lần)
 
-Cần Go ≥ 1.22 (`be/go.mod` tự tải toolchain 1.23), Node.js ≥ 20.9, git. Chép `project1` ra **thư mục riêng** — như một
+Cần Go ≥ 1.22 (`be/go.mod` tự tải toolchain 1.23), Node.js ≥ 22 (gói ai-kit), git, Claude Code. Chép `project1` ra **thư mục riêng** — như một
 repo thật, không lẫn với repo kit:
 
 ```bash
@@ -29,26 +29,37 @@ AI đã đổi gì. Tắt app: `bash scripts/down.sh`.
 
 ## Phần A — Nhúng kit
 
-### A1. Cài kit một lệnh
+### A1. Cài kit
 
 ```bash
-git clone --depth 1 -b v2 https://github.com/dunglt-iks/ai-kit .ai-kit && bash .ai-kit/setup.sh
+npm install -D github:dunglt-iks/ai-kit#v3.0.0     # gói kit vào devDependencies (project1 có package.json ở gốc)
+npx kit init --dry-run                             # xem trước
+npx kit init
 ```
 
-(Chưa có tag `v2` thì thay `-b v2` bằng nhánh đang thử.) `setup.sh` kiểm Node / npm / git, cài thư viện của kit, **xem
-trước** rồi hỏi trước khi `kit init`, hỏi có thêm lệnh tắt `kit` vào shell không, cuối cùng tự kiểm.
+(Chưa có tag `v3.0.0` thì thay bằng nhánh đang thử, vd `#feat/v3-plugin`.) Dưới đây `kit` = `npx kit`. Rồi cài plugin
+cho Claude Code: mở `claude` ở gốc repo, chấp nhận tin cậy thư mục (marketplace `ai-kit` được khai từ settings), thoát
+ra và chạy
+
+```bash
+claude plugin install kit@ai-kit --scope project
+```
 
 | Thấy gì | Ý nghĩa |
 |---|---|
-| `ai-kit.yml` | Cấu hình; `guides: [CLAUDE.md]` do kit tìm thấy, `kitRef: v2` |
-| `.claude/commands/` (8 lệnh), `.claude/agents/` (spec-reviewer, tester, reviewer) | Vỏ lệnh trỏ tới `.ai-kit/process/` |
+| `package.json` + lockfile: `ai-kit` trong devDependencies | Phiên bản kit của dự án; đồng đội `npm ci` là có cùng bản |
+| `ai-kit.yml` | Cấu hình; `guides: [CLAUDE.md]` do kit tìm thấy |
+| `.claude/settings.json` | Marketplace `ai-kit` ghim `ref: v3.0.0`, bật plugin `kit@ai-kit`, deny `kit approve` cho AI |
 | `CLAUDE.md`: chỉ thêm khối `<!-- ai-kit:start … end -->` ở cuối | Khối cầu nối; quy định BE / FE / stack của repo giữ nguyên |
-| `.gitignore` thêm `/.ai-kit` | Kit không bị commit vào repo |
-| `guides` không có `fe/AGENTS.md` (file có sẵn trong repo, do Next.js sinh) | Kit chỉ dò file hướng dẫn ở gốc repo — `/kit-adopt` sẽ hỏi có thêm không |
+| `.gitignore` thêm `/e2e/test-results/` | Kết quả chạy test không bị commit |
+| `guides` không có `fe/AGENTS.md` (file có sẵn trong repo, do Next.js sinh) | Kit chỉ dò file hướng dẫn ở gốc repo — `/kit:adopt` sẽ hỏi có thêm không |
 
-### A2. `/kit-adopt` — AI đề xuất cấu hình
+Trong Claude Code gõ `/kit` — thấy `/kit:spec` … `/kit:adopt` là plugin đã nạp. Thử nhờ AI "chạy `npx kit approve
+AUTH-F01`": hook của plugin chặn, AI phải nhờ bạn tự chạy.
 
-Trong Claude Code gõ `/kit-adopt`. AI đọc `CLAUDE.md`, `e2e/README.md`, cấu trúc repo, rồi đề xuất từng giá trị kèm căn
+### A2. `/kit:adopt` — AI đề xuất cấu hình
+
+Trong Claude Code gõ `/kit:adopt`. AI đọc `CLAUDE.md`, `e2e/README.md`, cấu trúc repo, rồi đề xuất từng giá trị kèm căn
 cứ. Đối chiếu với bảng, duyệt xong mới cho AI ghi:
 
 | Khoá | Giá trị nên có | Căn cứ |
@@ -72,27 +83,27 @@ viết theo khuôn kit** ở `docs/features/<MOD>-<tên>/` (vd module `AUTH`). B
 kit doctor                 # 0 lỗi
 kit context                # hai lớp quy định, chưa có feature nào theo khuôn kit
 kit next-code AUTH         # → AUTH-F01
-git add -A && git commit -qm "chore: nhúng ai-kit"
+git add -A && git commit -qm "chore: nhúng ai-kit"   # gồm package.json, lockfile, .claude/settings.json
 ```
 
 ## Phần B — Quên mật khẩu, đăng ký theo quy trình
 
-Thứ tự: `/spec` → `/prototype` → `kit approve` (spec + prototype) → `/testcase` → `kit approve --testcase` →
-`/e2e-script` → `/dev` → `kit e2e` → (`/e2e-triage` nếu fail) → `/ship`.
+Thứ tự: `/kit:spec` → `/kit:prototype` → `kit approve` (spec + prototype) → `/kit:testcase` → `kit approve --testcase` →
+`/kit:e2e-script` → `/kit:dev` → `kit e2e` → (`/kit:e2e-triage` nếu fail) → `/kit:ship`.
 
 ### B0. (Tuỳ chọn) Đưa chức năng đăng nhập vào khuôn kit
 
 ```
-/spec chuyển chức năng đăng nhập (docs/features/login.md) sang khuôn của kit
+/kit:spec chuyển chức năng đăng nhập (docs/features/login.md) sang khuôn của kit
 ```
 
 AI tạo module `AUTH` (PRD + FSD), feature `AUTH-F01` đăng nhập, mô tả đúng hành vi đang có. Lợi ích: chức năng mới dẫn
-được tới màn hình / luồng đăng nhập bằng mã; `/testcase AUTH-F01` có e2e cho chức năng cũ.
+được tới màn hình / luồng đăng nhập bằng mã; `/kit:testcase AUTH-F01` có e2e cho chức năng cũ.
 
-### B1. `/spec` — quên mật khẩu
+### B1. `/kit:spec` — quên mật khẩu
 
 ```
-/spec người dùng quên mật khẩu thì tự đặt lại được
+/kit:spec người dùng quên mật khẩu thì tự đặt lại được
 ```
 
 AI hỏi tối đa 5 câu. Các điểm nên chốt (repo không gửi được email): gửi link đặt lại thế nào trong demo (vd BE ghi link
@@ -105,14 +116,14 @@ kit spec AUTH-F02          # các mã US / nhánh / SCR phải phủ
 kit ready AUTH-F02         # ✘ spec chưa duyệt, ✘ chưa có prototype
 ```
 
-### B2. `/prototype`
+### B2. `/kit:prototype`
 
 ```
-/prototype docs/features/AUTH-…/FSD-….md AUTH-F02
+/kit:prototype docs/features/AUTH-…/FSD-….md AUTH-F02
 ```
 
 Mở file `PROTOTYPE-….html` bằng trình duyệt, bấm thử. Đổi bố cục thì nói với AI (ghi ngược về FSD); đổi nghiệp vụ thì
-quay lại `/spec`. AI tự chạy `kit check-prototype` và nhờ `spec-reviewer` đối chiếu với spec.
+quay lại `/kit:spec`. AI tự chạy `kit check-prototype` và nhờ `spec-reviewer` đối chiếu với spec.
 
 ### B3. Duyệt — bằng lệnh
 
@@ -122,10 +133,10 @@ kit approve AUTH-F02 --prototype     # ô Prototype → đã duyệt, đóng d�
 kit ready AUTH-F02                   # ✓
 ```
 
-### B4. `/testcase` → duyệt test case
+### B4. `/kit:testcase` → duyệt test case
 
 ```
-/testcase AUTH-F02
+/kit:testcase AUTH-F02
 ```
 
 AI tạo `e2e/testcases/AUTH/AUTH-F02.md` (nháp). Đọc, sửa nếu cần, rồi:
@@ -135,20 +146,20 @@ kit approve AUTH-F02 --testcase      # status + reviewer + approvedHash
 kit gate AUTH-F02                    # TC qua; báo "không có script" → bước sau
 ```
 
-### B5. `/e2e-script` — script đầu tiên của repo
+### B5. `/kit:e2e-script` — script đầu tiên của repo
 
 ```
-/e2e-script AUTH-F02
+/kit:e2e-script AUTH-F02
 ```
 
 AI viết `e2e/scripts/AUTH/AUTH-F02.spec.ts` và page object (`e2e/pages/AUTH/…`) theo `e2e/README.md`: dùng
 `fx.user()` tạo tài khoản riêng, `test.step` theo bước TC, kiểm đúng chữ trên màn hình. Lúc này **chưa có code** → chạy
 thử thì fail — đúng như mong đợi; AI phải báo "nghi do app chưa làm", không sửa script cho khớp app.
 
-### B6. `/dev` — kế hoạch, code, test, review
+### B6. `/kit:dev` — kế hoạch, code, test, review
 
 ```
-/dev docs/features/AUTH-…/FSD-….md AUTH-F02
+/kit:dev docs/features/AUTH-…/FSD-….md AUTH-F02
 ```
 
 AI ghi kế hoạch (`docs/plans/…`) rồi **dừng** chờ bạn đồng ý; code BE (endpoint, store, service theo `CLAUDE.md`) và FE
@@ -163,19 +174,19 @@ kit e2e AUTH-F02 --base-url http://localhost:3000           # gate + chạy
 open e2e/test-results/reports/latest.md                     # báo cáo cho người đọc: bước fail, ảnh, trace
 ```
 
-Có test fail → `/e2e-triage`: AI phân loại (lỗi app / lỗi script / TC sai / môi trường), sửa script nếu lỗi script; lỗi
-app thì sửa bằng `/dev`, rồi chạy lại.
+Có test fail → `/kit:e2e-triage`: AI phân loại (lỗi app / lỗi script / TC sai / môi trường), sửa script nếu lỗi script; lỗi
+app thì sửa bằng `/kit:dev`, rồi chạy lại.
 
 ### B8. Đăng ký tài khoản — làm lại vòng trên
 
-`/spec người dùng tự đăng ký tài khoản` → `AUTH-F03` → B2 … B7. Chú ý ở `/spec`: tên đăng nhập trùng, quy tắc mật khẩu
+`/kit:spec người dùng tự đăng ký tài khoản` → `AUTH-F03` → B2 … B7. Chú ý ở `/kit:spec`: tên đăng nhập trùng, quy tắc mật khẩu
 (dùng chung `BR` với quên mật khẩu nếu giống), đăng ký xong có tự đăng nhập không. Script đăng ký tạo tài khoản qua giao
 diện nên phải `fx.track(username)` để dọn.
 
-### B9. `/ship`
+### B9. `/kit:ship`
 
 ```
-/ship
+/kit:ship
 ```
 
 AI chạy kiểm tra cuối (`stack.checks`, `kit e2e changed`), soạn mô tả PR, **hỏi trước khi push**. Repo demo không có
@@ -202,7 +213,7 @@ của dự án — chưa có gate, chưa có e2e sau deploy.
 
 ### C3. Nhúng kit vào CI
 
-Sau Phần A, `/kit-adopt` đề xuất thêm workflow (chỉ đề xuất, không tự tạo). Đối chiếu đề xuất của AI với bản dưới —
+Sau Phần A, `/kit:adopt` đề xuất thêm workflow (chỉ đề xuất, không tự tạo). Đối chiếu đề xuất của AI với bản dưới —
 khác chỗ nào thì hỏi lại AI, sai thì sửa theo bản này — rồi lưu `.github/workflows/ai-kit.yml`, commit, push:
 
 ```yaml
@@ -227,8 +238,8 @@ jobs:
     concurrency: { group: "ai-kit-gate-${{ github.event.pull_request.number }}", cancel-in-progress: true }
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: dunglt-iks/ai-kit/actions/gate@v2
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: dunglt-iks/ai-kit/actions/gate@v3.0.0
 
   e2e:
     if: >-
@@ -244,8 +255,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}   # đúng commit vừa deploy
+          persist-credentials: false
       - run: npm ci --no-audit --no-fund
-      - uses: dunglt-iks/ai-kit/actions/e2e@v2
+      - uses: dunglt-iks/ai-kit/actions/e2e@v3.0.0
         with:
           base-url: http://host.docker.internal:3100
           env: dev
@@ -263,7 +275,7 @@ container test tách nhau, gọi qua `host.docker.internal`. Không có `schedul
 1. **Sau deploy:** merge một PR → `ci` → `deploy-dev` → `ai-kit` / `e2e`. Xem step summary (báo cáo theo feature / TC),
    artifact `e2e-results`.
 2. **E2E đỏ:** sửa lệch một thông báo lỗi của trang quên mật khẩu, merge → issue "🔴 E2E `dev` đang đỏ". Ở máy:
-   `/e2e-triage <run-id>`; sửa, merge → e2e xanh, issue tự đóng.
+   `/kit:e2e-triage <run-id>`; sửa, merge → e2e xanh, issue tự đóng.
 3. **Gate xanh:** PR từ nhánh `feat/AUTH-F03-…` có commit mang mã → job `gate` xanh, comment PR.
 4. **Gate đỏ:** PR sửa `be/` không khai mã; hoặc sửa TC đã duyệt mà không `kit approve --testcase` → gate đỏ, comment chỉ
    lệnh cần chạy, nhãn `e2e-blocked`.
@@ -278,18 +290,18 @@ bash ~/demo/project1/scripts/down.sh && rm -rf ~/demo/project1     # rồi làm 
 
 | Muốn | Dùng |
 |---|---|
-| Cài / nâng cấp kit | `bash .ai-kit/setup.sh` / `bash .ai-kit/setup.sh --update` |
+| Cài / nâng cấp kit | `npm install -D github:dunglt-iks/ai-kit#<tag>` → `kit init` (+ `claude plugin install kit@ai-kit --scope project` lần đầu) |
 | Kiểm kit nhúng đúng chưa · xem kit hiểu repo thế nào | `kit doctor` · `kit context` |
-| Đề xuất cấu hình khi mới nhúng | `/kit-adopt` |
+| Đề xuất cấu hình khi mới nhúng | `/kit:adopt` |
 | Lấy mã mới | `kit next-code AUTH`, `kit next-code AUTH-F02 --type US` |
-| Viết / sửa yêu cầu · xem màn hình | `/spec` · `/prototype <file> <mã>` |
+| Viết / sửa yêu cầu · xem màn hình | `/kit:spec` · `/kit:prototype <file> <mã>` |
 | Duyệt spec / prototype / test case | `kit approve <mã>` / `--prototype` / `--testcase` |
 | Đủ điều kiện viết TC, code chưa | `kit ready <mã>` |
-| Test case · script e2e | `/testcase <mã>` · `/e2e-script <mã>` |
-| Code theo spec / sửa bug | `/dev <file> <mã>` / `/dev #<issue>` |
+| Test case · script e2e | `/kit:testcase <mã>` · `/kit:e2e-script <mã>` |
+| Code theo spec / sửa bug | `/kit:dev <file> <mã>` / `/kit:dev #<issue>` |
 | Chạy e2e (app đang chạy) | `kit e2e <mã> --base-url http://localhost:3000`; `kit e2e changed` cho cả nhánh |
-| Đọc kết quả · test fail | `e2e/test-results/reports/latest.md` · `/e2e-triage` |
-| Mở PR | `/ship` |
+| Đọc kết quả · test fail | `e2e/test-results/reports/latest.md` · `/kit:e2e-triage` |
+| Mở PR | `/kit:ship` |
 
 **Ai làm gì:** AI phỏng vấn, viết tài liệu, test case, script, code, review. **Người** duyệt spec, prototype, test case
 (`kit approve`), kế hoạch, và xác nhận mỗi lần commit / push. **`kit`** cấp mã, ghi và kiểm trạng thái duyệt, gate,

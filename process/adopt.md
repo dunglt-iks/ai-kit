@@ -1,12 +1,12 @@
-# Quy trình /kit-adopt — đề xuất cấu hình khi mới nhúng ai-kit
+# Quy trình /kit:adopt — đề xuất cấu hình khi mới nhúng ai-kit
 
 Chạy một lần sau `kit init` (hoặc khi đổi lớn cấu trúc repo). Bạn **đề xuất**, người dùng **quyết**: không ghi
 `ai-kit.yml` hay file hướng dẫn nào trước khi được duyệt. Không sửa code ứng dụng.
 
 ## Bước 1 — Đọc
 
-1. `node .ai-kit/cli/bin/kit.mjs context` và `node .ai-kit/cli/bin/kit.mjs doctor`.
-2. Đọc `ai-kit.yml`, `.ai-kit/RULES.md`, `.ai-kit/templates/ai-kit.yml` (ý nghĩa từng khoá).
+1. `npx --no kit context` và `npx --no kit doctor`.
+2. Đọc `ai-kit.yml`, `<kit>/RULES.md`, `<kit>/templates/ai-kit.yml` (ý nghĩa từng khoá).
 3. Đọc **mọi file `guides`** và các file chúng trỏ tới mà nói về tài liệu yêu cầu, quy trình, test.
 4. Xem cấu trúc repo: thư mục tài liệu, kế hoạch, code, test, e2e; file build (`package.json`, `Makefile`,
    `go.mod`, `pyproject.toml`…); CI (`.github/workflows/`); lịch sử commit gần đây (quy ước message, tên nhánh).
@@ -29,12 +29,12 @@ Mỗi khoá đề xuất kèm **căn cứ** (file:dòng). Không có căn cứ t
 | TAF (`testcases`, `scripts`, `run.command`, `run.baseUrlEnv`, `trigger.codePaths`) | e2e hiện có, lệnh chạy test (Playwright…), biến địa chỉ app mà cấu hình test đọc, thư mục code nên chặn PR thiếu mã |
 
 Repo đã có tài liệu theo dạng khác PRD/FSD: nêu chỗ khác, đề xuất (a) chuyển dần theo khuôn của kit, hoặc (b) viết
-spec adapter riêng (`./…mjs`, xem `.ai-kit/adapters/README.md`). Không tự chuyển tài liệu.
+spec adapter riêng (`./…mjs`, xem `<kit>/adapters/README.md`). Không tự chuyển tài liệu.
 
 ## Bước 3 — Liệt kê mâu thuẫn giữa guides và kit
 
 Đối chiếu guides với RULES. Mỗi mâu thuẫn một dòng: **guides nói gì (file:dòng) — kit nói gì (RULES §) — đề xuất**.
-Hay gặp: nơi viết spec, cách đánh mã, ai duyệt, nơi viết e2e (tay vs TAF), quy ước commit/PR, lệnh `/spec`…
+Hay gặp: nơi viết spec, cách đánh mã, ai duyệt, nơi viết e2e (tay vs TAF), quy ước commit/PR, lệnh `/kit:spec`…
 trùng tên đã có trong repo. Không tự chọn bên nào.
 
 ## Bước 4 — Trình bày → ⏸ DỪNG

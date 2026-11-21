@@ -6,8 +6,8 @@ Claude đọc file này trước khi sinh script từ test case (`scripts.guide`
 
 | Thư mục | Nội dung | Ai sửa |
 |---|---|---|
-| `testcases/<MOD>/<MÃ>.md` | Test case markdown | Claude soạn (`/testcase`), người duyệt |
-| `scripts/<MOD>/<MÃ>.spec.mjs` | Script sinh từ TC | Claude (`/e2e-script`) |
+| `testcases/<MOD>/<MÃ>.md` | Test case markdown | Claude soạn (`/kit:testcase`), người duyệt |
+| `scripts/<MOD>/<MÃ>.spec.mjs` | Script sinh từ TC | Claude (`/kit:e2e-script`) |
 | `pages/<MOD>/*.mjs`, `pages/common/` | Page object theo module / dùng chung | Dự án; Claude được bổ sung |
 | `tests/` | Test viết tay không theo TC (smoke) | Dự án |
 | `support/` | `fixtures.mjs`, `global-setup.mjs`, `personas.mjs` — khung test | Dự án |

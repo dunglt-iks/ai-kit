@@ -1,0 +1,21 @@
+{
+  "extraKnownMarketplaces": {
+    "ai-kit": {
+      "source": {
+        "source": "github",
+        "repo": "dunglt-iks/ai-kit",
+        "ref": "v3.0.0"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "kit@ai-kit": true
+  },
+  "permissions": {
+    "deny": [
+      "Bash(kit approve *)",
+      "Bash(npx kit approve *)",
+      "Bash(npx --no kit approve *)"
+    ]
+  }
+}

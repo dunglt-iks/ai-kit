@@ -1,7 +1,7 @@
 // @ts-check
 // Issue theo dõi theo môi trường (kit e2e --track): mỗi môi trường tối đa một issue đang mở "🔴 E2E <env> đang đỏ".
 // Lần chạy đỏ: chưa có issue → mở; đã có → sửa thân (danh sách fail hiện tại) + comment (fail mới / đã hết).
-// Lần chạy xanh: comment rồi đóng. Không phải ghi bug: bug từng lỗi do người phân loại (/e2e-triage) rồi ghi riêng.
+// Lần chạy xanh: comment rồi đóng. Không phải ghi bug: bug từng lỗi do người phân loại (/kit:e2e-triage) rồi ghi riêng.
 // Tất định, không gọi AI. Xem docs/07-bug-reporting.md.
 import { commentIssue, createIssue, ensureLabel, findOpenIssue, updateIssue } from "./github.mjs";
 
@@ -67,7 +67,7 @@ export function trackBody(c) {
   lines.push(
     "### Việc cần làm",
     "",
-    `1. Ở máy: \`/e2e-triage${c.runId ? ` ${c.runId}` : ""}\` — tải kết quả lần chạy, phân loại, sửa script; bug app thì ghi issue riêng (nhắc lại issue này).`,
+    `1. Ở máy: \`/kit:e2e-triage${c.runId ? ` ${c.runId}` : ""}\` — tải kết quả lần chạy, phân loại, sửa script; bug app thì ghi issue riêng (nhắc lại issue này).`,
     "2. Lỗi dựng dữ liệu: sửa fixture hoặc cấu hình môi trường, không sửa test cho khớp.",
     "",
     "_Issue do ai-kit tự mở, cập nhật và đóng khi môi trường xanh lại — không sửa tay phần trên._",

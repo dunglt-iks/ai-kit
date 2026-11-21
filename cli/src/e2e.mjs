@@ -4,7 +4,7 @@
 //                                              [--close-fixed] [--track] [--publish github] [--merge] [--fail-on]
 // Thứ tự: chọn feature → gate (TC + script, tuỳ chọn) → chờ app → chạy run.command → báo cáo (→ comment PR, issue theo
 // dõi môi trường, đóng bug đã hết). Kiểm tuân thủ của PR (không chạy test) là lệnh riêng: kit gate --pr (gatePr).
-// CI không ghi bug mới: test fail chưa phân loại chỉ được báo; phân loại + ghi bug ở máy (/e2e-triage).
+// CI không ghi bug mới: test fail chưa phân loại chỉ được báo; phân loại + ghi bug ở máy (/kit:e2e-triage).
 // Xem docs/04-ci-workflow.md.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

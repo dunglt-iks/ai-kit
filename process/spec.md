@@ -1,13 +1,13 @@
-# Quy trình /spec — làm rõ yêu cầu, ghi vào tài liệu spec
+# Quy trình /kit:spec — làm rõ yêu cầu, ghi vào tài liệu spec
 
 Đầu vào: mô tả ngắn việc cần làm. Bạn làm rõ yêu cầu rồi ghi nó vào **đúng một chỗ đã có** trong hệ thống
 tài liệu spec của repo. Bạn **không viết code** trong lệnh này.
 
 ## Bước 0 — Nạp hai lớp quy định
 
-1. `node .ai-kit/cli/bin/kit.mjs context` — ngôn ngữ, thư mục spec, mẫu mã, chữ trạng thái, khuôn, feature hiện có.
+1. `npx --no kit context` — ngôn ngữ, thư mục spec, mẫu mã, chữ trạng thái, khuôn, feature hiện có.
 2. Đọc các file `guides` (bỏ qua file `kit context` đánh dấu "công cụ đã tự nạp") (lớp kỹ thuật: để biết ràng buộc kỹ thuật cần hỏi — quyền, đa ngôn ngữ, đa tenant…).
-3. Đọc `.ai-kit/RULES.md` (lớp quy trình) và khuôn `spec.templates.prd`, `spec.templates.fsd`.
+3. Đọc `<kit>/RULES.md` (lớp quy trình) và khuôn `spec.templates.prd`, `spec.templates.fsd`.
 
 Viết mọi thứ bằng `language`. Dưới đây "nháp"/"đã duyệt" là giá trị `spec.status.draft`/`approved`.
 
@@ -58,14 +58,14 @@ thì đề xuất tách thành thư mục (RULES §2) — không tự tách khi 
   xuất mà yêu cầu gốc không nêu thì nói rõ khi bàn giao.
 - Repo có khuôn giao diện dùng chung (guides hoặc một module nền) thì tuân theo, không vẽ lại kiểu khác; cần
   lệch thì ghi lý do ở quy tắc hiển thị.
-- Đây là nơi duy nhất vẽ bố cục — `/prototype` chỉ dựng HTML từ đây và đồng bộ ngược thay đổi giao diện.
+- Đây là nơi duy nhất vẽ bố cục — `/kit:prototype` chỉ dựng HTML từ đây và đồng bộ ngược thay đổi giao diện.
 
 Trong mọi nhánh:
 - Tiêu chí chấp nhận kiểm chứng được, gồm cả trường hợp lỗi. Với FSD: luồng chính + từng nhánh `A#`/`E#` — mỗi
   nhánh là một tiêu chí có mã riêng. Với việc nhỏ: dạng "Khi … thì …".
 - Điều chưa rõ thì hỏi; người dùng muốn để ngỏ thì ghi `?` trong FSD và đưa vào mục câu hỏi còn mở của PRD —
   không tự đoán, không tạo danh sách câu hỏi ở chỗ khác.
-- Ghi rõ phạm vi **không** làm lần này, để `/dev` không tự mở rộng.
+- Ghi rõ phạm vi **không** làm lần này, để `/kit:dev` không tự mở rộng.
 - Mọi feature có nội dung nghiệp vụ bị thêm/sửa → ô **Spec** = `spec.status.draft` (RULES §2.2). Feature có giao
   diện mà màn hình bị thêm/sửa → ô **Prototype** = `spec.status.draft` (thêm cột Prototype vào Feature Summary nếu
   chưa có); feature không có giao diện → ô Prototype = `—`. Bạn chỉ được đặt nháp, không bao giờ đặt đã duyệt.
@@ -85,15 +85,15 @@ Hiển thị đúng phần vừa thêm/sửa, kèm **kết quả soát** (kết 
 dung còn mở). Còn `?` chưa chốt trong một mã thì nói rõ — duyệt khi còn để ngỏ là quyết định của người dùng.
 
 **Duyệt là việc của người, bằng lệnh** — bạn không tự đổi ô sang đã duyệt, kể cả khi người dùng nói "duyệt":
-hướng dẫn họ chạy `node .ai-kit/cli/bin/kit.mjs approve <mã>` (ghi người + ngày). Người dùng nhờ bạn chạy lệnh đó
+hướng dẫn họ chạy `npx --no kit approve <mã>` (ghi người + ngày). Người dùng nhờ bạn chạy lệnh đó
 thì chỉ chạy cho đúng mã họ nêu rõ.
 
 Ghi rõ **đường dẫn file + mã** vừa dùng, và bước tiếp (RULES §3):
-- Có giao diện (và `spec.prototype`): `/prototype <file> <mã>` — chạy được **khi spec còn nháp**, để xem màn hình
+- Có giao diện (và `spec.prototype`): `/kit:prototype <file> <mã>` — chạy được **khi spec còn nháp**, để xem màn hình
   rồi mới duyệt. Sau đó người duyệt cả hai: `kit approve <mã>` và `kit approve <mã> --prototype`.
 - Không có giao diện: `kit approve <mã>`.
-- Rồi: `/testcase <mã>` → người duyệt TC (`kit approve <mã> --testcase`) → `/e2e-script <mã>` → `/dev <file> <mã>`. `kit ready <mã>` cho biết đã
+- Rồi: `/kit:testcase <mã>` → người duyệt TC (`kit approve <mã> --testcase`) → `/kit:e2e-script <mã>` → `/kit:dev <file> <mã>`. `kit ready <mã>` cho biết đã
   đủ điều kiện chưa.
 - Việc **đã được triển khai** (tiến độ khác `progress.values.todo`, hoặc đã có kế hoạch trong `spec.plansDir`):
-  đây là thay đổi spec cần đồng bộ xuống code — duyệt lại (và `/prototype` nếu đụng màn hình), `/testcase <mã>`
-  (đồng bộ), rồi `/dev` (tự nhận chế độ đồng bộ).
+  đây là thay đổi spec cần đồng bộ xuống code — duyệt lại (và `/kit:prototype` nếu đụng màn hình), `/kit:testcase <mã>`
+  (đồng bộ), rồi `/kit:dev` (tự nhận chế độ đồng bộ).

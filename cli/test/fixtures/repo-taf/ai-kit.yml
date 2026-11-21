@@ -1,0 +1,13 @@
+# Dự án chỉ dùng phần TAF (không nối công cụ AI): mã module dạng CORE-Cxx, persona, status file.
+version: 2
+agents: []
+spec:
+  featurePattern: '(?:[A-Z]{2,4}|CORE-C\d{2})-F\d{2}'
+  normalize:
+    - { pattern: '(?<!CORE-)\bC(\d{2})-F(\d{2})', replace: 'CORE-C$1-F$2' }
+testcases:
+  personas: web/e2e/personas.yml
+trigger:
+  codePaths: [server/**, web/src/**]
+  statusFile: docs/status.md
+  statusDone: [Hoàn thành]

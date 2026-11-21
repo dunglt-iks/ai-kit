@@ -98,17 +98,17 @@ Gate lấy danh sách mã bắt buộc từ spec adapter (`requiredCodes`). Mộ
 ```
 
 Feature không có gì kiểm được qua giao diện (thuần backend): file TC chỉ có mục ngoài phạm vi, không có `## TC-…`.
-Lint chỉ cảnh báo, gate không đòi script, `/e2e-script` bỏ qua.
+Lint chỉ cảnh báo, gate không đòi script, `/kit:e2e-script` bỏ qua.
 
 ## 4. Phát hiện TC lỗi thời
 
-`specHash` là hash phần spec của feature lúc sinh TC (adapter tính, `kit spec <mã> --hash`). Adapter `prd-fsd` băm cả định nghĩa các quy tắc `BR` mà feature dẫn tới nhưng khai ở chỗ khác trong module (bảng quy tắc của PRD, feature khác) — BR dùng chung đổi thì TC của mọi feature dẫn tới nó đều lỗi thời. Khi spec đổi, hash hiện tại khác `specHash` và gate báo **TC lỗi thời**. Người review cập nhật TC (hoặc chạy lại `/testcase` ở chế độ đồng bộ), duyệt lại, rồi ghi hash mới.
+`specHash` là hash phần spec của feature lúc sinh TC (adapter tính, `kit spec <mã> --hash`). Adapter `prd-fsd` băm cả định nghĩa các quy tắc `BR` mà feature dẫn tới nhưng khai ở chỗ khác trong module (bảng quy tắc của PRD, feature khác) — BR dùng chung đổi thì TC của mọi feature dẫn tới nó đều lỗi thời. Khi spec đổi, hash hiện tại khác `specHash` và gate báo **TC lỗi thời**. Người review cập nhật TC (hoặc chạy lại `/kit:testcase` ở chế độ đồng bộ), duyệt lại, rồi ghi hash mới.
 
 ## 5. Quy trình sinh và duyệt
 
 ```
 Spec Đã duyệt
-  └─ ở máy: /testcase DL-F05 (CI không soạn TC từ 2.0)
+  └─ ở máy: /kit:testcase DL-F05 (CI không soạn TC từ 2.0)
                                           ▼
                          TC status: Nháp (Claude sinh)
                                           │ người review sửa, bổ sung case biên, kit approve <MÃ> --testcase
@@ -119,10 +119,10 @@ Spec Đã duyệt
                          gate chấp nhận
 ```
 
-- `/testcase` **từ chối chạy** khi spec của feature còn Nháp.
+- `/kit:testcase` **từ chối chạy** khi spec của feature còn Nháp.
 - Chỉ người review duyệt TC, bằng `kit approve <MÃ> --testcase`: ghi `status`, `reviewer` (git user) và
   `approvedHash` — hash nội dung TC lúc duyệt (bỏ ba dòng này). Lệnh từ chối TC còn lỗi lint, chưa có `specHash`
   hoặc lỗi thời so với spec. Claude không tự duyệt.
 - **TC sửa sau khi duyệt** (nội dung khác `approvedHash`, kể cả khi đã `kit rehash` script): `lint-tc`, gate báo
   lỗi, `plan-gen` không sinh script, `check-paths` coi là sửa ngoài phạm vi. Người review xem lại rồi duyệt lại.
-- Chạy lại `/testcase` trên file đã có là **chế độ đồng bộ**: chỉ thêm TC cho nhánh mới, đánh dấu TC có nhánh đã bỏ là `[DEPRECATED]`, đưa `status` về Nháp.
+- Chạy lại `/kit:testcase` trên file đã có là **chế độ đồng bộ**: chỉ thêm TC cho nhánh mới, đánh dấu TC có nhánh đã bỏ là `[DEPRECATED]`, đưa `status` về Nháp.
