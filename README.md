@@ -22,6 +22,7 @@ test fail (máy hoặc CI) → /kit:e2e-triage ở máy → sửa script / ghi b
 ```
 
 Chi tiết: [docs/10](docs/10-quy-trinh.md). Quy tắc AI phải theo: [`RULES.md`](RULES.md). Thực hành từng bước: [docs/12](docs/12-user-guide.md).
+Hướng dẫn dùng cho dự án đang có / dự án mới: [docs/14](docs/14-huong-dan-plugin.md).
 
 ## Hai lớp quy định
 
