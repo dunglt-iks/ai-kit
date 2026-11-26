@@ -117,7 +117,8 @@ export function assertionStats(code) {
   const byTc = {};
   marks.forEach((m, k) => {
     const block = code.slice(m.index, marks[k + 1]?.index ?? code.length);
-    const calls = [...block.matchAll(/\bexpect(?:\.soft)?\([\s\S]*?\)\s*(?:\.not)?\s*\.(\w+)\(/g)].map((x) => x[1]);
+    // expect(…), expect.soft(…) và expect.poll(…) (chờ tới khi đúng — Playwright), kể cả `expect\n  .poll(…)` xuống dòng.
+    const calls = [...block.matchAll(/\bexpect(?:\s*\.(?:soft|poll))?\([\s\S]*?\)\s*(?:\.not)?\s*\.(\w+)\(/g)].map((x) => x[1]);
     const st = (byTc[m.id] ||= { expects: 0, weak: 0, usesPage: false });
     if (/\{\s*[^}]*\bpage\b[^}]*\}\s*\)\s*=>|\bpage\./.test(block)) st.usesPage = true;
     st.expects += calls.length;
