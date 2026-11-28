@@ -611,3 +611,24 @@ test("TC-SHOP-12-001 Checkout", async ({ page, request }) => {
   rehash(cfg, "SHOP-12");
   assert.doesNotMatch(checkScript(cfg, "SHOP-12").errors.join("\n"), /gọi API ghi/);
 });
+
+test("check-script — expect.poll (kể cả xuống dòng trước .poll) được tính là assertion", async () => {
+  const { assertionStats } = await import("../src/scripts.mjs");
+  const code = [
+    'test("TC-X-F01-001 poll một dòng", async () => {',
+    "  await expect.poll(() => keys(x)).toEqual(['a']);",
+    "});",
+    'test("TC-X-F01-002 poll xuống dòng", async () => {',
+    "  await expect",
+    "    .poll(async () => (await chart.slices()).length)",
+    "    .toBe(6);",
+    "});",
+    'test("TC-X-F01-003 không kiểm gì", async () => {',
+    "  await page.goto('/');",
+    "});",
+  ].join("\n");
+  const { byTc } = assertionStats(code);
+  assert.equal(byTc["TC-X-F01-001"].expects, 1);
+  assert.equal(byTc["TC-X-F01-002"].expects, 1);
+  assert.equal(byTc["TC-X-F01-003"].expects, 0);
+});

@@ -1,6 +1,6 @@
 {
   "name": "ai-kit",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "ai-kit — quy trình spec → prototype → dev → test → ship cho AI, kèm Test Automation Framework (e2e)",
   "type": "module",
