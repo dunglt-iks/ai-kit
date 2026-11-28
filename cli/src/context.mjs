@@ -8,7 +8,7 @@ import { bridgeBlock, findBlock } from "./bridge.mjs";
 import { rel } from "./config.mjs";
 import { TafError } from "./errors.mjs";
 import { readyFeature } from "./approve.mjs";
-import { AGENT_ADAPTERS, KIT, kitRelease, loadAgent, mergeSettings } from "./init.mjs";
+import { AGENT_ADAPTERS, KIT, V2, kitRelease, loadAgent, mergeSettings, pluginMode, v2Shells } from "./init.mjs";
 import { loadQuarantine } from "./history.mjs";
 
 /** Thư mục gói ai-kit nhìn từ gốc dự án (thường node_modules/ai-kit); ngoài dự án thì đường dẫn tuyệt đối. */
@@ -257,7 +257,24 @@ export async function doctor(cfg) {
   }
 
   if ("kitRef" in cfg) warn("kitRef không còn dùng (từ ai-kit 3): phiên bản kit là gói ai-kit trong devDependencies — xoá khoá này");
+  // Phần của ai-kit 2.x còn sót
+  for (const f of v2Shells(cfg.root)) warn(`${f} là vỏ lệnh ai-kit 2.x (lệnh nay ở plugin, tên /kit:*) — chạy kit init để gỡ`);
+  for (const f of V2.bridgeFiles)
+    if (exists(f) && findBlock(fs.readFileSync(path.join(cfg.root, f), "utf8")))
+      warn(`${f} còn khối ai-kit 2.x (adapter agents-md đã bỏ) — chạy kit init để gỡ`);
+  if (exists(".ai-kit")) warn(".ai-kit/ là bản kit 2.x — xoá thư mục này (và dòng /.ai-kit trong .gitignore); kit nay là gói ai-kit trong devDependencies");
+
+  let mode = "pin";
+  try {
+    mode = pluginMode(cfg);
+  } catch (e) {
+    error(e.message);
+  }
   for (const name of cfg.agents) {
+    if (V2.agents.includes(name)) {
+      warn(`agents: "${name}" bỏ từ ai-kit 3 (chỉ còn: ${AGENT_ADAPTERS.join(", ")}) — xoá khỏi ai-kit.yml`);
+      continue;
+    }
     if (!AGENT_ADAPTERS.includes(name)) {
       error(`agents: không có adapter "${name}" (có: ${AGENT_ADAPTERS.join(", ")})`);
       continue;
@@ -269,11 +286,18 @@ export async function doctor(cfg) {
       try {
         const cur = fs.readFileSync(sf, "utf8");
         const ours = a.settings(kitRelease());
-        if (mergeSettings(cur, ours).action !== "keep")
-          warn(`${name}: ${a.settingsFile} chưa khớp ai-kit ${kitRelease().version} (marketplace / plugin / deny) — chạy kit init`);
-        const on = JSON.parse(cur).enabledPlugins || {};
-        for (const [k, v] of Object.entries(ours.enabledPlugins))
-          if (on[k] === false) warn(`${name}: ${a.settingsFile} tắt plugin ${k} — lệnh quy trình và hook chặn AI tự duyệt sẽ không có`);
+        if (mergeSettings(cur, ours, mode).action !== "keep")
+          warn(`${name}: ${a.settingsFile} chưa khớp ai-kit ${kitRelease().version} (${mode === "managed" ? "deny" : "marketplace / plugin / deny"}) — chạy kit init`);
+        const json = JSON.parse(cur);
+        if (mode !== "managed") {
+          const on = json.enabledPlugins || {};
+          for (const k of Object.keys(ours.enabledPlugins))
+            if (on[k] === false) warn(`${name}: ${a.settingsFile} tắt plugin ${k} — lệnh quy trình và hook chặn AI tự duyệt sẽ không có`);
+        }
+        if (mode === "keep")
+          for (const [k, m] of Object.entries(json.extraKnownMarketplaces || {}))
+            if (k in ours.extraKnownMarketplaces && JSON.stringify(m) !== JSON.stringify(ours.extraKnownMarketplaces[k]))
+              warn(`${name}: plugin: keep — marketplace ${k} lấy từ ${m?.source?.repo ?? "?"}@${m?.source?.ref ?? "?"}, không phải bản ${kitRelease().ref} của gói; xong việc thử thì đặt lại plugin: pin`);
       } catch (e) {
         error(`${name}: ${a.settingsFile}: ${e.message}`);
       }

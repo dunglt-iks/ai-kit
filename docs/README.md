@@ -2,9 +2,9 @@
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Phiên bản | 3.1 |
+| Phiên bản | 3.2 |
 | Trạng thái | Chuẩn bị phát hành v3.0.0 (chưa gắn tag) |
-| Cập nhật lần cuối | 2026-11-23 |
+| Cập nhật lần cuối | 2026-11-28 |
 | Áp dụng đầu tiên | `app-base` (ví dụ trong tài liệu) — áp dụng 3.x ở PR riêng |
 
 > **Ví dụ trong tài liệu:** một số lấy từ `app-base` (mã spec `DL-F05`, `CORE-C10`…), là dự án áp dụng đầu tiên — chỉ là ví dụ. Dự án mẫu chạy được ngay trong repo này là [`examples/project1`](../examples/project1/) (BE Go + FE Next.js, chưa nhúng kit).
@@ -13,6 +13,7 @@
 
 | Phiên bản | Ngày | Mô tả thay đổi | Tác giả |
 |---|---|---|---|
+| 3.2 | 2026-11-28 | Nâng từ 2.x: `kit init` gỡ vỏ lệnh / agent có dấu `ai-kit:shell` và khối ai-kit trong `AGENTS.md`, bỏ qua `agents-md` (doctor nhắc xoá; trước đó `kit init` lỗi); doctor báo `.ai-kit/` còn sót. Khoá `plugin` (`pin` · `keep` · `managed`): giữ marketplace đã khai để thử plugin từ fork / nhánh, hoặc để tổ chức bật plugin — kit chỉ ghi deny. Gộp ai-kit 2.0.1 (`expect.poll`). Sửa 11, 14 (thêm C6, C7). | BA Team |
 | 3.1 | 2026-11-23 | Thêm 14 — hướng dẫn dùng gói `ai-kit` + plugin `kit` cho hai trường hợp: tích hợp vào dự án đang có (soát `/kit:adopt`, áp dụng dần cho tài liệu và test cũ, `trigger.codePaths` lúc mới áp dụng) và dự án mới (spec trước, dựng khung, guides, khung e2e); phần dùng chung: một vòng feature, đồng đội, nâng cấp (cập nhật plugin), CI, sự cố hay gặp. | BA Team |
 | 3.0 | 2026-11-21 | ai-kit 3.0.0 — đổi cách phân phối, không giữ tương thích 2.x (chưa có dự án dùng). Kit là **gói npm** cài từ git tag (`devDependencies`, lockfile ghim commit; `files` chỉ mang CLI, quy trình, prompt, khuôn, docs) + **plugin Claude Code `kit`** (`plugin/`, marketplace `.claude-plugin/`): skill `/kit:spec` … `/kit:adopt` (tên lệnh đổi từ `/spec`…), agent, hook `PreToolUse` chặn AI chạy `kit approve`. Plugin mỏng, trỏ tới `process/` của gói đã cài (`<kit>` = dòng `Kit` của `kit context`). `kit init` ghi `.claude/settings.json` (marketplace ghim tag của gói, bật plugin, deny) thay cho vỏ lệnh; doctor báo plugin lệch tag / bị tắt, thiếu gói trong devDependencies. Bỏ `.ai-kit/`, `kitRef`, `setup.sh`, dấu `ai-kit:shell`, `--force`; bỏ adapter `agents-md` (giữ lớp adapter cho công cụ khác sau này); bỏ đọc `taf.config.yml` 1.x, `kit init --migrate`, nhánh `release/1.x`. Node ≥ 22 (`npm test` chạy được trên Node 22+). Workflow mẫu: `persist-credentials: false`, cảnh báo `pull_request_target`, ghim `@v3.0.0`. Sửa 01, 04, 08, 10, 11, 12; D1, D17, D18, D23, D24 viết lại, thêm D27. | BA Team |
 | 2.2 | 2026-11-26 | ai-kit 2.0.1: `check-script` đếm cả `expect.poll(…)` (kể cả `expect` xuống dòng rồi `.poll`) là assertion — trước đó test chỉ dùng `expect.poll` bị báo "không có expect nào" và gate đỏ (phát hiện khi áp vào app-base). | BA Team |

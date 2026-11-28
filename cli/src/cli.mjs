@@ -41,8 +41,9 @@ const HELP = `kit <lệnh> [tuỳ chọn]
 
 Nhúng kit, quy trình:
   init                 Nhúng / cập nhật ai-kit trong dự án (cwd hoặc --root), chạy lại được (cả sau khi nâng gói ai-kit):
-       [--dry-run]     ai-kit.yml (dò guides), .claude/settings.json (plugin kit ghim đúng bản, deny kit approve), khối
-                       cầu nối, .gitignore; rồi tự kiểm (như doctor). Không đụng .github/
+       [--dry-run]     ai-kit.yml (dò guides), .claude/settings.json (plugin kit theo khoá plugin, deny kit approve), khối
+                       cầu nối, .gitignore; gỡ phần của ai-kit 2.x (vỏ ai-kit:shell, khối trong AGENTS.md); rồi tự
+                       kiểm (như doctor). Không đụng .github/
   doctor               Kiểm việc nhúng: cấu hình, guides, settings của công cụ AI, khối cầu nối, spec adapter
   context              In cấu hình đã giải (hai lớp quy định) cho AI đọc ở bước 0  [--json] [--scope <module>]
   approve <mã…>        Người duyệt spec (ghi "<đã duyệt> (người, ngày)" vào cột Spec của PRD)
@@ -167,7 +168,7 @@ async function main() {
     const res = await initProject(root, { dryRun: opt["dry-run"] });
     for (const r of res)
       console.log(
-        `${{ create: "+", keep: "=", update: "~" }[r.action]} ${r.file}${r.note ? ` (${r.note})` : ""}`,
+        `${{ create: "+", keep: "=", update: "~", remove: "-" }[r.action]} ${r.file}${r.note ? ` (${r.note})` : ""}`,
       );
     if (opt["dry-run"]) {
       console.log("\n(--dry-run: chưa ghi gì)");

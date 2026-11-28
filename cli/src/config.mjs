@@ -25,6 +25,7 @@ const DEFAULTS = {
     prTool: "gh", // gh | none (in mô tả PR để người tự tạo)
   },
   agents: ["claude"], // công cụ AI kit nối vào (plugin + khối cầu nối): claude (adapters/agent/)
+  plugin: "pin", // kit init ghi plugin vào settings: pin (ghim tag của gói) | keep (giữ marketplace đã khai) | managed (tổ chức quản lý, chỉ ghi deny)
   guides: [], // lớp kỹ thuật của repo (CLAUDE.md, AGENTS.md…): AI đọc trước khi làm; kit init tự dò
   docs: {
     author: "BA Team", // cột Tác giả trong Change Log

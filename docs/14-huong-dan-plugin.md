@@ -273,5 +273,39 @@ sau deploy dev / hằng đêm → `actions/e2e` vào địa chỉ đã deploy. C
 | `kit doctor`: settings "chưa khớp ai-kit X" | vừa nâng gói mà chưa chạy lại `npx kit init` |
 | `kit doctor`: "tắt plugin kit@ai-kit" | `enabledPlugins` đặt `false` — xoá dòng đó hoặc đặt `true` nếu muốn dùng |
 | AI bị chặn khi chạy `kit approve` | đúng thiết kế: duyệt là việc của người — bạn tự chạy |
+| Chạy lại `kit init` thì marketplace thử nghiệm (fork / nhánh) bị đưa về tag của gói | đặt `plugin: keep` ([C7](#c7-thử-plugin-từ-fork--nhánh-tổ-chức-tự-bật-plugin)) |
+
+### C6. Nâng từ ai-kit 2.x
+
+```bash
+npm install -D github:dunglt-iks/ai-kit#<tag 3.x>
+npx kit init --dry-run        # xem trước: dòng "-" là file sẽ gỡ
+npx kit init
+```
+
+`kit init` tự dọn phần của 2.x:
+
+- vỏ lệnh / agent có dấu `ai-kit:shell` trong `.claude/commands/`, `.claude/agents/` → gỡ (lệnh nay ở plugin, tên
+  `/kit:spec`…). File không có dấu là của repo — giữ nguyên;
+- khối `ai-kit:start/end` trong `AGENTS.md` (adapter `agents-md` đã bỏ) → gỡ khối, phần của repo giữ nguyên; file chỉ
+  có khối thì gỡ cả file;
+- `agents-md` trong `ai-kit.yml` → bỏ qua, nhắc xoá; khối trong `CLAUDE.md` thay bằng bản 3.x.
+
+Việc của người: xoá thư mục `.ai-kit/` và dòng `/.ai-kit` trong `.gitignore`, xoá khoá `kitRef`, `agents-md` trong
+`ai-kit.yml` (`kit doctor` nhắc từng việc), cài plugin ([A3](#a3-cài-plugin)), báo đồng đội tên lệnh mới `/kit:*`.
+
+### C7. Thử plugin từ fork / nhánh; tổ chức tự bật plugin
+
+Khoá `plugin` trong `ai-kit.yml` quyết định `kit init` ghi gì vào `.claude/settings.json`:
+
+| Giá trị | Khi nào | `kit init` ghi |
+|---|---|---|
+| `pin` (mặc định) | dùng bình thường | marketplace ghim tag của gói đang cài + bật plugin + deny |
+| `keep` | thử plugin từ fork / nhánh chưa phát hành | giữ marketplace đã khai trong settings (chưa có thì như `pin`) + bật plugin + deny |
+| `managed` | tổ chức đã bật plugin cho mọi người (managed settings hoặc trang quản trị Claude) | chỉ luật deny |
+
+Thử một nhánh: đặt `plugin: keep`, sửa `extraKnownMarketplaces.ai-kit.source` trong `.claude/settings.json` thành
+`{ "source": "github", "repo": "<chủ>/ai-kit", "ref": "<nhánh>" }`, rồi cài plugin như [A3](#a3-cài-plugin).
+`kit doctor` nhắc đang dùng marketplace khác bản gói — thử xong thì đặt lại `pin` và chạy `kit init`.
 | Phiên Claude Code trên cloud (claude.ai/code) không có `/kit:*` | cloud không nạp plugin khai trong repo; dùng ở máy, hoặc nhờ quản trị bật plugin cho tổ chức |
 | `kit ready` ✘ dù đã duyệt | màn hình trong spec đổi sau khi duyệt prototype (dấu hash lệch) — `/kit:prototype` cập nhật rồi `kit approve <mã> --prototype` |

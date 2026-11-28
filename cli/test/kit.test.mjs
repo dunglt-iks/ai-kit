@@ -140,6 +140,94 @@ test("kit init --dry-run không ghi; ai-kit.yml có sẵn với kitRef (bản 2.
   assert.ok(d.some((r) => r.level === "warn" && /devDependencies/.test(r.msg)));
 });
 
+test("nâng từ ai-kit 2.x: kit init gỡ vỏ lệnh có dấu, khối trong AGENTS.md, bỏ qua agents-md; giữ lệnh riêng của repo", async () => {
+  const v2Block = () => "<!-- ai-kit:start — v2 -->\n## ai-kit\nđọc `.ai-kit/process/dev.md`\n<!-- ai-kit:end -->"; // khối cầu nối kiểu 2.x
+  const shell = "---\ndescription: vỏ\n---\n<!-- ai-kit:shell — vỏ do kit init quản lý -->\nĐọc `.ai-kit/process/spec.md`\n";
+  const mine = "---\ndescription: lệnh deploy riêng của repo\n---\nmake deploy\n";
+  const agentsMd = "# AGENTS.md\nChạy make lint trước khi commit.\n";
+  const dir = tmp({
+    "ai-kit.yml": "version: 2\nkitRef: v2\nagents: [claude, agents-md]\nguides: [CLAUDE.md, AGENTS.md]\n",
+    "CLAUDE.md": `# Repo\n\n${v2Block()}\n`,
+    "AGENTS.md": `${agentsMd}\n${v2Block()}\n`,
+    ".claude/commands/spec.md": shell,
+    ".claude/commands/kit-adopt.md": shell,
+    ".claude/commands/deploy.md": mine,
+    ".claude/agents/tester.md": shell,
+    ".ai-kit/RULES.md": "bản 2.x",
+    "package.json": JSON.stringify({ devDependencies: { "ai-kit": "github:x/ai-kit#v3.0.0" } }),
+  });
+  let d = await doctor(await loadProject({ root: dir }));
+  const warns = d.filter((r) => r.level === "warn").map((r) => r.msg).join("\n");
+  for (const re of [/spec\.md là vỏ lệnh ai-kit 2\.x/, /tester\.md là vỏ lệnh ai-kit 2\.x/, /AGENTS\.md còn khối ai-kit 2\.x/, /\.ai-kit\/ là bản kit 2\.x/, /"agents-md" bỏ từ ai-kit 3/, /kitRef/])
+    assert.match(warns, re);
+  assert.ok(!d.some((r) => r.level === "error" && /agents-md/.test(r.msg)), "agents-md chỉ cảnh báo, không chặn");
+
+  const res = await initProject(dir);
+  const act = (f) => res.filter((r) => r.file === f).map((r) => r.action);
+  assert.deepEqual(act(".claude/commands/spec.md"), ["remove"]);
+  assert.deepEqual(act(".claude/commands/kit-adopt.md"), ["remove"]);
+  assert.deepEqual(act(".claude/agents/tester.md"), ["remove"]);
+  assert.deepEqual(act("AGENTS.md"), ["update"]);
+  assert.ok(res.some((r) => r.file === "ai-kit.yml" && /agents-md bỏ từ ai-kit 3/.test(r.note || "")));
+  assert.ok(!fs.existsSync(path.join(dir, ".claude/commands/spec.md")));
+  assert.equal(fs.readFileSync(path.join(dir, ".claude/commands/deploy.md"), "utf8"), mine); // không có dấu: của repo
+  assert.equal(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"), agentsMd);
+  const claude = fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8");
+  assert.equal(claude.split("ai-kit:start").length, 2);
+  assert.match(claude, /`\/kit:dev`/);
+  assert.doesNotMatch(claude, /\.ai-kit\//);
+
+  d = await doctor(await loadProject({ root: dir }));
+  assert.ok(!d.some((r) => /vỏ lệnh ai-kit 2|AGENTS\.md còn khối/.test(r.msg)));
+  assert.ok(d.some((r) => /\.ai-kit\/ là bản kit 2\.x/.test(r.msg)), "thư mục .ai-kit/ người tự xoá");
+  assert.ok((await initProject(dir)).every((r) => r.action === "keep"), "chạy lại: không đổi gì");
+
+  // AGENTS.md chỉ có khối của kit (do kit 2.x tạo) → gỡ cả file
+  const only = tmp({ "ai-kit.yml": "version: 2\nagents: [agents-md]\n", "AGENTS.md": `${v2Block()}\n` });
+  const r2 = await initProject(only);
+  assert.deepEqual(r2.filter((r) => r.file === "AGENTS.md").map((r) => r.action), ["remove"]);
+  assert.ok(!fs.existsSync(path.join(only, "AGENTS.md")));
+  assert.ok(fs.existsSync(path.join(only, ".claude/settings.json")), "chỉ còn agents-md → vẫn nối claude");
+});
+
+test("khoá plugin: keep giữ marketplace đã khai (thử fork / nhánh), managed chỉ ghi deny", async () => {
+  const { kitRelease } = await import("../src/init.mjs");
+  const { DENY } = await import("../../adapters/agent/claude.mjs");
+  const fork = { source: { source: "github", repo: "someone/ai-kit", ref: "feat/x" } };
+  const pkg = JSON.stringify({ devDependencies: { "ai-kit": "github:x/ai-kit#v3.0.0" } });
+  const read = (d) => JSON.parse(fs.readFileSync(path.join(d, ".claude/settings.json"), "utf8"));
+
+  // pin (mặc định): marketplace của fork bị đưa về tag của gói
+  const pin = tmp({ "ai-kit.yml": "version: 2\n", "package.json": pkg, ".claude/settings.json": JSON.stringify({ extraKnownMarketplaces: { "ai-kit": fork } }) });
+  await initProject(pin);
+  assert.equal(read(pin).extraKnownMarketplaces["ai-kit"].source.ref, kitRelease().ref);
+
+  // keep: giữ fork; chạy lại không đổi; doctor nhắc đang dùng marketplace khác bản gói, không đòi kit init
+  const keep = tmp({ "ai-kit.yml": "version: 2\nplugin: keep\n", "package.json": pkg, ".claude/settings.json": JSON.stringify({ extraKnownMarketplaces: { "ai-kit": fork } }) });
+  await initProject(keep);
+  assert.deepEqual(read(keep).extraKnownMarketplaces["ai-kit"], fork);
+  assert.equal(read(keep).enabledPlugins["kit@ai-kit"], true);
+  assert.ok((await initProject(keep)).every((r) => r.action === "keep"));
+  let d = await doctor(await loadProject({ root: keep }));
+  assert.ok(d.some((r) => r.level === "warn" && /plugin: keep — marketplace ai-kit lấy từ someone\/ai-kit@feat\/x/.test(r.msg)));
+  assert.ok(!d.some((r) => /chưa khớp ai-kit/.test(r.msg)));
+  // keep mà chưa khai marketplace → như pin
+  const keepNew = tmp({ "ai-kit.yml": "version: 2\nplugin: keep\n" });
+  await initProject(keepNew);
+  assert.equal(read(keepNew).extraKnownMarketplaces["ai-kit"].source.ref, kitRelease().ref);
+
+  // managed: tổ chức bật plugin — chỉ deny; doctor không đòi marketplace / plugin
+  const managed = tmp({ "ai-kit.yml": "version: 2\nplugin: managed\n", "package.json": pkg });
+  await initProject(managed);
+  assert.deepEqual(read(managed), { permissions: { deny: DENY } });
+  d = await doctor(await loadProject({ root: managed }));
+  assert.ok(!d.some((r) => r.level !== "ok" && /settings\.json/.test(r.msg)), JSON.stringify(d.filter((r) => /settings/.test(r.msg))));
+
+  // giá trị sai: init từ chối, doctor báo lỗi
+  const bad = tmp({ "ai-kit.yml": "version: 2\nplugin: auto\n" });
+  await assert.rejects(initProject(bad), /plugin: "auto" không hợp lệ/);
+});
+
 test("context + next-code trên dự án mẫu: mã kế tiếp không tái dùng số", async () => {
   const cfg = await loadProject({ root: REPO_V2 });
   const c = await buildContext(cfg);

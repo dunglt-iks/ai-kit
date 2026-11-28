@@ -12,6 +12,8 @@ project:
   prTool: gh                           # gh | none
 
 agents: [claude]                       # công cụ AI kit nối vào (adapters/agent/): claude
+plugin: pin                            # plugin kit trong .claude/settings.json: pin (ghim tag của gói) | keep (giữ marketplace
+                                       # đã khai — thử fork / nhánh) | managed (tổ chức bật plugin — chỉ ghi luật deny)
 guides: []                             # kit init điền: file hướng dẫn AI sẵn có của repo
 
 docs:

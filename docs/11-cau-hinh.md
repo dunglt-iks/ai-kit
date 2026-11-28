@@ -13,6 +13,7 @@ Kit đọc `ai-kit.yml` ở gốc dự án, hoặc `--config <file>`.
 | `language` | `vi` | Ngôn ngữ tài liệu, câu hỏi, báo cáo AI viết ra |
 | `project.baseBranch`, `remote`, `prTool` | `main`, `origin`, `gh` | Rebase, diff, tạo PR (`none`: in mô tả để người tự tạo) |
 | `agents` | `[claude]` | Công cụ AI kit nối vào (settings + plugin, khối cầu nối): `claude` ([10 §2](10-quy-trinh.md)); `[]` = chỉ dùng TAF |
+| `plugin` | `pin` | `kit init` ghi plugin `kit` vào `.claude/settings.json` thế nào: `pin` — khai marketplace ghim tag của gói đang cài + bật plugin; `keep` — marketplace repo đã khai thì giữ nguyên (thử plugin từ fork / nhánh), chưa khai thì như `pin`; `managed` — tổ chức bật plugin (managed settings / trang quản trị Claude), kit chỉ ghi luật deny. Xem [14 §C6–C7](14-huong-dan-plugin.md) |
 | `guides` | `[]` (init tự dò) | Lớp kỹ thuật của repo — file/thư mục AI đọc trước khi làm |
 | `docs.author`, `docs.splitAt` | `BA Team`, `50000` | Cột Tác giả của Change Log; ngưỡng byte tách FSD thành thư mục |
 | `spec.codeDigits` | `2` | Số chữ số của `F`/`US`/`SCR`/`BR`/`NFR`/`CMP`: `2` (`DM-F01`) hoặc `3` (`DM-F001`). Hết số thì `next-code` cấp thêm một chữ số; kit đọc cả hai độ dài |
@@ -54,7 +55,8 @@ Kit đọc `ai-kit.yml` ở gốc dự án, hoặc `--config <file>`.
 ## 3. Từ ai-kit 2.x
 
 `ai-kit.yml` vẫn `version: 2`. Khoá `kitRef` bỏ (phiên bản kit là gói `ai-kit` trong devDependencies; `kit doctor` nhắc
-xoá). `agents` chỉ còn `claude`. `taf.config.yml` (TAF 1.x) không còn đọc.
+xoá). `agents` chỉ còn `claude`: `agents-md` còn trong cấu hình thì `kit init` bỏ qua, `kit doctor` nhắc xoá.
+`taf.config.yml` (TAF 1.x) không còn đọc. Các bước nâng: [14 §C6](14-huong-dan-plugin.md).
 
 ## 4. Lệnh
 
