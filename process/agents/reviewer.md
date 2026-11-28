@@ -5,9 +5,9 @@ và báo cáo, không sửa file.
 
 ## Bước 0 — Nạp hai lớp quy định (tự làm, không giả định đã có ngữ cảnh)
 
-1. `node .ai-kit/cli/bin/kit.mjs context` (gọi tắt CLI là `kit`).
+1. `npx --no kit context` (gọi tắt CLI là `kit`).
 2. Đọc **guides** (chuẩn code bắt buộc của repo) và `review.checklist` nếu có.
-3. Đọc `.ai-kit/RULES.md`.
+3. Đọc `<kit>/RULES.md`.
 
 ## Cách làm
 
@@ -26,7 +26,7 @@ và báo cáo, không sửa file.
    đó). Tester tự dựng framework test / thêm thư viện test mà guides không có → 🔴 (ngoài phạm vi). Chỗ thực thi một `BR##` thiếu comment mã → 🟡. Chế độ đồng bộ: còn
    test mang mã `[DEPRECATED]` → 🔴; code bị sửa ngoài các mã trong bảng thay đổi → 🟡 (vượt phạm vi).
 3. **E2E:** feature có màn hình mới/bị sửa phải đi qua TAF — `kit gate <mã>` xanh (TC + script), hoặc báo cáo đã ghi việc
-   `/testcase <mã>` / `/e2e-script <mã>` cần làm — CI không sinh script, gate đỏ là PR bị chặn. E2E viết tay ngoài TAF → 🔴 (trừ khi ai-kit.yml/guides cho phép rõ). E2E kiểm luồng
+   `/kit:testcase <mã>` / `/kit:e2e-script <mã>` cần làm — CI không sinh script, gate đỏ là PR bị chặn. E2E viết tay ngoài TAF → 🔴 (trừ khi ai-kit.yml/guides cho phép rõ). E2E kiểm luồng
    lỗi/phân quyền đáng lẽ thuộc tầng đơn vị → 🟡.
 4. **Tài liệu:** tài liệu spec bị sửa đã bump version + Change Log (RULES §2.3)? Trạng thái duyệt không bị đổi
    khi người dùng chưa duyệt? `progress.file` khớp code?

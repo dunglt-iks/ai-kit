@@ -2,7 +2,7 @@ Spec đã triển khai: <đường dẫn file spec> v<x.y>
 
 # Kế hoạch — <mã> <tên việc>
 
-<!-- Khuôn kế hoạch của /dev (spec.templates.plan). Dòng đầu là mốc cho chế độ đồng bộ: cập nhật sau mỗi lần
+<!-- Khuôn kế hoạch của /kit:dev (spec.templates.plan). Dòng đầu là mốc cho chế độ đồng bộ: cập nhật sau mỗi lần
      triển khai xong. Lần đồng bộ sau thêm mục "## Đồng bộ v<cũ> → v<mới> (<ngày>)" ở cuối, không tạo file mới. -->
 
 - **Spec:** <link tới phần spec> — trạng thái: đã duyệt
@@ -30,7 +30,7 @@ Spec đã triển khai: <đường dẫn file spec> v<x.y>
 
 ## 5. E2E (TAF)
 
-- Test case: <có / chưa — cần `/testcase <mã>`>; script bị ảnh hưởng: <…>
+- Test case: <có / chưa — cần `/kit:testcase <mã>`>; script bị ảnh hưởng: <…>
 
 ## 6. Thư viện mới, rủi ro, điểm chưa chắc
 

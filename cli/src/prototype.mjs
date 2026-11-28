@@ -29,7 +29,7 @@ export function checkPrototype(cfg, code) {
   if (!file && !f.prototype?.required)
     return { code, file, skipped: "chưa có prototype, PRD không theo dõi (không có cột Prototype hoặc ô là —)", errors, warnings };
   if (!file) {
-    errors.push("chưa có file prototype — chạy `/prototype`");
+    errors.push("chưa có file prototype — chạy `/kit:prototype`");
     return { code, file, errors, warnings };
   }
   const html = fs.readFileSync(path.join(cfg.root, file), "utf8");

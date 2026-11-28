@@ -54,7 +54,7 @@ export function issueBody(cfg, report, f) {
  * Lập kế hoạch (không gọi tracker): mỗi bug app → create | seen | reopen; issue mở có TC đã
  * pass hết và không còn fail → close.
  * @param {{ id: any, state: string, body: string }[]} existing
- * Chỉ test đã phân loại (triage.json, do /e2e-triage ghi) mới thành bug. closeOnly: chỉ đóng, không tạo / mở lại
+ * Chỉ test đã phân loại (triage.json, do /kit:e2e-triage ghi) mới thành bug. closeOnly: chỉ đóng, không tạo / mở lại
  * (CI dùng khi chạy hồi quy).
  * @param {{ closeFixed?: boolean, closeOnly?: boolean }} o
  */
@@ -183,6 +183,6 @@ export async function fileBugs(cfg, report, o = {}) {
     }
   }
   if (unclassified.length && !o.closeOnly)
-    log(`⚠ ${unclassified.length} test fail chưa phân loại — chạy /e2e-triage để phân loại trước khi ghi bug`);
+    log(`⚠ ${unclassified.length} test fail chưa phân loại — chạy /kit:e2e-triage để phân loại trước khi ghi bug`);
   return { actions, unclassified, issues };
 }

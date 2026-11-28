@@ -1,6 +1,6 @@
 # prompts/
 
-Prompt cho Claude, chạy **ở máy** qua `/testcase`, `/e2e-script`, `/e2e-triage` (CI không gọi AI). Mỗi prompt chạy với cwd là repo dự án và đọc `ai-kit.yml`.
+Prompt cho Claude, chạy **ở máy** qua `/kit:testcase`, `/kit:e2e-script`, `/kit:e2e-triage` (CI không gọi AI). Mỗi prompt chạy với cwd là repo dự án và đọc `ai-kit.yml`.
 
 | File | Đầu vào → đầu ra | Ràng buộc bắt buộc | Có |
 |---|---|---|---|

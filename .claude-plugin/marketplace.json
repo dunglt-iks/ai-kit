@@ -1,0 +1,14 @@
+{
+  "name": "ai-kit",
+  "owner": {
+    "name": "BA Team"
+  },
+  "description": "ai-kit — quy trình spec → ship cùng AI và TAF (kiểm thử e2e)",
+  "plugins": [
+    {
+      "name": "kit",
+      "source": "./plugin",
+      "description": "Quy trình spec → prototype → dev → test → ship (lệnh /kit:*, agent, hook chặn AI tự duyệt)"
+    }
+  ]
+}

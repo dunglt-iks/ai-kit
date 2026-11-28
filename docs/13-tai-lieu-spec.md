@@ -11,11 +11,11 @@ Spec là đầu chuỗi: **spec → test case → script e2e → code → bug**.
 
 ```
 FSD: #### DM-F01-US02, nhánh A1        ← người viết spec đặt mã
- └─ TC: "Truy vết: DM-F01-US02-A1"     ← /testcase phủ từng mã, kit gate kiểm phủ đủ
-     └─ script: test "TC-DM-F01-003 …" ← /e2e-script, chạy bằng kit e2e
- └─ code: // DM-F01-US02-A1: …         ← /dev gắn ở chỗ thực thi quy tắc
+ └─ TC: "Truy vết: DM-F01-US02-A1"     ← /kit:testcase phủ từng mã, kit gate kiểm phủ đủ
+     └─ script: test "TC-DM-F01-003 …" ← /kit:e2e-script, chạy bằng kit e2e
+ └─ code: // DM-F01-US02-A1: …         ← /kit:dev gắn ở chỗ thực thi quy tắc
      └─ test đơn vị: "DM-F01-US02-A1: …"
- └─ issue: [e2e] TC-DM-F01-003 …       ← TAF ghi bug, /dev #<số> sửa
+ └─ issue: [e2e] TC-DM-F01-003 …       ← TAF ghi bug, /kit:dev #<số> sửa
 ```
 
 Nhờ vậy: spec đổi chỗ nào thì `grep` mã ra đúng test, code, TC phải sửa; gate biết TC còn thiếu mã nào; reviewer
@@ -31,8 +31,8 @@ docs/features/                       ← spec.roots
 └── addon/DM-demo/                   ← một module: thư mục mang mã module
     ├── PRD-demo.md                  ← phạm vi, vai trò, Feature Summary (trạng thái duyệt), quy tắc BR
     ├── FSD-demo.md                  ← từng feature: màn hình → luồng; mô hình dữ liệu
-    └── PROTOTYPE-demo.html          ← do /prototype dựng, một file cho cả module
-docs/plans/dm-f01.md                 ← kế hoạch của /dev (spec.plansDir) — không phải yêu cầu
+    └── PROTOTYPE-demo.html          ← do /kit:prototype dựng, một file cho cả module
+docs/plans/dm-f01.md                 ← kế hoạch của /kit:dev (spec.plansDir) — không phải yêu cầu
 ```
 
 - **Module** là một nhóm chức năng có mã 2–4 chữ hoa (`DM`, `CM`…). Thư mục mang mã, tên file bên trong thì không.
@@ -99,7 +99,7 @@ thành phần để xuống luồng (thứ hệ thống làm); luồng link ngư
 
 Cuối FSD: **Mô hình dữ liệu** (sơ đồ ER + mỗi thực thể một bảng thuộc tính) và **Điểm tích hợp** (nếu có). FSD
 **không có** mục Edge Cases (mọi tình huống là nhánh của luồng, hoặc quy tắc hiển thị của màn hình) và **không có**
-mục API (hợp đồng API thiết kế trong kế hoạch của `/dev`).
+mục API (hợp đồng API thiết kế trong kế hoạch của `/kit:dev`).
 
 ### Màn hình — 4 phần
 
@@ -209,9 +209,9 @@ Từ ví dụ này, `kit spec DM-F03` sẽ báo phải phủ: `DM-F03-US01`, `DM
 ## 7. Vòng đời
 
 ```
-/spec viết ──► Spec: Nháp ──► kit approve DM-F03 ──► Đã duyệt (người, ngày)
-/prototype ──► Prototype: Nháp ──► kit approve DM-F03 --prototype ──► Đã duyệt + dấu hash màn hình
-                    kit ready DM-F03 ✓ ──► /testcase → /e2e-script → /dev
+/kit:spec viết ──► Spec: Nháp ──► kit approve DM-F03 ──► Đã duyệt (người, ngày)
+/kit:prototype ──► Prototype: Nháp ──► kit approve DM-F03 --prototype ──► Đã duyệt + dấu hash màn hình
+                    kit ready DM-F03 ✓ ──► /kit:testcase → /kit:e2e-script → /kit:dev
 ```
 
 - **Mỗi lần sửa tài liệu**: bump phiên bản phụ (1.2 → 1.3), cập nhật ngày, thêm dòng Change Log **lên đầu**
@@ -220,7 +220,7 @@ Từ ví dụ này, `kit spec DM-F03` sẽ báo phải phủ: `DM-F03-US01`, `DM
   dòng đó, không bump. Phiên bản "đóng" khi có mục được duyệt.
 - **Sửa spec đã duyệt** → ô Spec quay về Nháp, phải duyệt lại. Sửa **màn hình** sau khi duyệt prototype → `kit ready`
   báo prototype không còn khớp cho tới khi cập nhật và duyệt lại prototype. TC viết trước đó bị gate báo lỗi thời →
-  `/testcase` đồng bộ.
+  `/kit:testcase` đồng bộ.
 - Đổi trạng thái (nháp ↔ đã duyệt) không phải thay đổi nội dung: không bump, không Change Log.
 - Chưa chốt được thì ghi `?` ngay chỗ đó và đưa vào mục câu hỏi còn mở của PRD — đừng đoán.
 
@@ -239,13 +239,13 @@ Từ ví dụ này, `kit spec DM-F03` sẽ báo phải phủ: `DM-F03-US01`, `DM
 | Mô tả quy tắc nghiệp vụ trong bảng thành phần | hai nơi lệch nhau | dẫn mã BR/luồng |
 
 > Mẫu định dạng là §6 ở trên và `templates/`. Repo đã có tài liệu theo kiểu khác (ticket, SRS — vd
-> `examples/project1/docs/`) thì `/kit-adopt` chỉ ra chỗ khác và đề xuất cách chuyển; tài liệu cũ không tự bị sửa.
+> `examples/project1/docs/`) thì `/kit:adopt` chỉ ra chỗ khác và đề xuất cách chuyển; tài liệu cũ không tự bị sửa.
 
 ## 9. Kit hỗ trợ gì
 
 | Việc | Lệnh |
 |---|---|
-| Viết spec theo khuôn, phỏng vấn | `/spec` (tự gọi `spec-reviewer` soát) |
+| Viết spec theo khuôn, phỏng vấn | `/kit:spec` (tự gọi `spec-reviewer` soát) |
 | Lấy mã mới | `kit next-code` |
 | Xem kit đọc được gì từ spec của một feature | `kit spec DM-F03` |
 | Danh sách feature + trạng thái của một module | `kit context --scope DM` |

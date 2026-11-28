@@ -6,7 +6,7 @@
 |---|---|
 | Prompt [`prompts/script.md`](../prompts/script.md): đọc TC + hướng dẫn của dự án → viết script | Hướng dẫn viết test (`scripts.guide`): import, persona, fixture dữ liệu, page object có sẵn, cách chờ |
 | `plan-gen`: chọn feature cần sinh. `check-script`: script khớp TC. `check-paths`: chỉ ghi chỗ được phép. `rehash` | Page object, fixture, Playwright config, `globalSetup` |
-| Lệnh `/e2e-script` (ở máy): chạy Claude, kiểm tra, chạy thử; gate trên CI chặn khi script thiếu / lệch TC | Lệnh lint (`scripts.lint`), cách bật app ở máy (`stack.env`) |
+| Lệnh `/kit:e2e-script` (ở máy): chạy Claude, kiểm tra, chạy thử; gate trên CI chặn khi script thiếu / lệch TC | Lệnh lint (`scripts.lint`), cách bật app ở máy (`stack.env`) |
 
 Ví dụ phần của dự án (khung test: config, persona, fixture, hướng dẫn viết test): [`examples/project1/e2e/`](../examples/project1/e2e/) và [`README.md`](../examples/project1/e2e/README.md) của nó (cấu trúc thư mục: [01 §3.1](01-architecture.md)).
 
@@ -70,15 +70,15 @@ Nguyên tắc: **không sửa script cho khớp app khi app làm khác TC.** K�
 Cưỡng chế hai lớp:
 
 1. **Prompt và quy trình** (`prompts/script.md`, `process/e2e-script.md`): chỉ ghi trong `allowedPaths`.
-2. **Kiểm tra sau**: `kit check-paths` so mọi file đã đổi (kể cả file mới, kể cả file ngoài thư mục dự án) với `allowedPaths` (mặc định `e2e/scripts/**`, `e2e/pages/**`, `e2e/support/**` — fixture dựng dữ liệu). File TC chỉ được chấp nhận khi là nháp, hoặc đã duyệt mà còn khớp `approvedHash` (người vừa duyệt, chưa commit) — **TC đã duyệt bị sửa luôn bị bắt**. Có file ngoài phạm vi → `/e2e-script`, `/e2e-triage` dừng, báo lại, không commit.
-3. **Fixture khi triage**: `/e2e-triage` chạy `kit check-paths --triage` — file trong `run.setupPaths` (fixture) bị đổi
+2. **Kiểm tra sau**: `kit check-paths` so mọi file đã đổi (kể cả file mới, kể cả file ngoài thư mục dự án) với `allowedPaths` (mặc định `e2e/scripts/**`, `e2e/pages/**`, `e2e/support/**` — fixture dựng dữ liệu). File TC chỉ được chấp nhận khi là nháp, hoặc đã duyệt mà còn khớp `approvedHash` (người vừa duyệt, chưa commit) — **TC đã duyệt bị sửa luôn bị bắt**. Có file ngoài phạm vi → `/kit:e2e-script`, `/kit:e2e-triage` dừng, báo lại, không commit.
+3. **Fixture khi triage**: `/kit:e2e-triage` chạy `kit check-paths --triage` — file trong `run.setupPaths` (fixture) bị đổi
    cũng là lỗi. Fixture dùng chung cho nhiều script; sửa nó lúc chữa test đỏ dễ thành "nới fixture cho xanh", che lỗi app.
    Cần sửa thật (fixture sai, không phải app sai) → AI dừng, nêu lý do, người đồng ý thì kiểm lại không `--triage`.
-   Viết fixture mới khi sinh script (`/e2e-script`) vẫn được, người duyệt cùng script.
+   Viết fixture mới khi sinh script (`/kit:e2e-script`) vẫn được, người duyệt cùng script.
 
 ## 6. Sinh ở máy, CI chỉ kiểm
 
-Script **sinh ở máy** bằng `/e2e-script <mã…>` ([`process/e2e-script.md`](../process/e2e-script.md)): `kit ready` →
+Script **sinh ở máy** bằng `/kit:e2e-script <mã…>` ([`process/e2e-script.md`](../process/e2e-script.md)): `kit ready` →
 `kit plan-gen` → Claude theo `prompts/script.md` → `check-script`, `lint-script`, `check-paths` → hỏi rồi chạy thử →
 người dùng commit. CI không gọi AI (D8): gate (`kit gate --pr` trên PR) kiểm `check-script` cho feature có TC đã duyệt
 (`gate.requireScript`), thiếu hoặc lệch thì PR bị chặn kèm lệnh cần chạy.

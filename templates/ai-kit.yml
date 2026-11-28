@@ -1,9 +1,7 @@
-# ai-kit.yml — cấu hình ai-kit của dự án. Xem .ai-kit/docs/11-cau-hinh.md.
+# ai-kit.yml — cấu hình ai-kit của dự án. Xem node_modules/ai-kit/docs/11-cau-hinh.md.
 # Mọi đường dẫn tính từ gốc repo. Khoá nào trùng giá trị mặc định có thể bỏ.
 # Lớp kỹ thuật (stack, code, lint…) là của repo: khai ở `guides`, kit không chép lại.
 version: 2
-kitRef: v2                             # phiên bản ai-kit; vỏ lệnh tự clone bản này vào .ai-kit/. Đổi cùng lúc với
-                                       # dunglt-iks/ai-kit/actions/{gate,e2e}@<ref> trong CI (nếu có), rồi kit init
 
 language: vi                           # ngôn ngữ tài liệu, câu hỏi, báo cáo AI viết ra
 
@@ -13,7 +11,9 @@ project:
   remote: origin
   prTool: gh                           # gh | none
 
-agents: [claude]                       # kit init điền: claude, agents-md
+agents: [claude]                       # công cụ AI kit nối vào (adapters/agent/): claude
+plugin: pin                            # plugin kit trong .claude/settings.json: pin (ghim tag của gói) | keep (giữ marketplace
+                                       # đã khai — thử fork / nhánh) | managed (tổ chức bật plugin — chỉ ghi luật deny)
 guides: []                             # kit init điền: file hướng dẫn AI sẵn có của repo
 
 docs:
@@ -22,7 +22,7 @@ docs:
 
 # ── Lớp quy trình: tài liệu spec ─────────────────────────────────────────────
 spec:
-  adapter: prd-fsd                     # có sẵn trong .ai-kit/adapters/spec/, hoặc ./đường/dẫn/adapter.mjs
+  adapter: prd-fsd                     # có sẵn trong node_modules/ai-kit/adapters/spec/, hoặc ./đường/dẫn/adapter.mjs
   roots: [docs/features]               # thư mục chứa module: <root>/<MÃ>-<tên>/PRD-<tên>.md, FSD-<tên>.md
   codeDigits: 2                        # số chữ số của F/US/SCR/BR: 2 (DM-F01) hoặc 3 (DM-F001); hết số thì tự dài thêm 1
   # featurePattern: '[A-Z]{2,4}-F\d{2,3}'   # mặc định theo codeDigits; khai khi mã module khác dạng (vd CORE-C\d{2})
@@ -33,14 +33,14 @@ spec:
   plansDir: docs/plans
   templates: {}                        # ghi đè khuôn của kit: { fsd, prd, plan, prototype }
   wireframeWidth: 76
-  prototype: true                      # false: dự án không có giao diện, bỏ /prototype
+  prototype: true                      # false: dự án không có giao diện, bỏ /kit:prototype
 
 progress:
   file: null                           # tuỳ chọn: bảng tiến độ theo mã (vd docs/features/implementation-status.md)
   values: { todo: Chưa bắt đầu, doing: Đang triển khai, done: [Hoàn thành, Đã kiểm thử] }
 
 stack:
-  checks: []                           # lệnh /dev, /ship chạy theo thứ tự, vd:
+  checks: []                           # lệnh /kit:dev, /kit:ship chạy theo thứ tự, vd:
                                        #   - { name: lint, run: npm run lint }
                                        #   - { name: unit, run: npm test }
   traceability: { searchPaths: [src] } # nơi tìm mã truy vết trong code + test
@@ -71,7 +71,7 @@ scripts:
   lint: null                           # tuỳ chọn: lệnh kiểm sau khi sinh (vd npx tsc --noEmit)
 
 # kit e2e chạy lệnh này vào app dự án đã dựng sẵn (CI của repo dựng; ở máy người tự bật). Dựng / tắt app, dữ liệu
-# nền, persona, dọn dữ liệu từng test là việc của dự án (CI, globalSetup, fixture) — xem .ai-kit/docs/04.
+# nền, persona, dọn dữ liệu từng test là việc của dự án (CI, globalSetup, fixture) — xem node_modules/ai-kit/docs/04.
 run:
   command: npx playwright test --reporter=json,list {files}   # {files} = script được chọn; {grep} = --grep (tuỳ chọn)
   baseUrlEnv: E2E_BASE_URL             # kit e2e --base-url <url> đặt biến này; cấu hình test của dự án đọc nó

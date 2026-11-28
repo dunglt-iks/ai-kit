@@ -53,7 +53,7 @@ test("waitForApp: mã < 500 là lên (kể cả 401 / 404); 5xx hoặc không k�
 
 async function runProject(command) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-ci-"));
-  fs.cpSync(path.join(KIT, "cli/test/fixtures/repo-v1"), dir, { recursive: true });
+  fs.cpSync(path.join(KIT, "cli/test/fixtures/repo-taf"), dir, { recursive: true });
   const cfg = await loadProject({ root: dir });
   cfg.run.command = command;
   return cfg;
@@ -97,7 +97,7 @@ test("kit e2e: output của step (GITHUB_OUTPUT) ghi cả khi không --publish (
 
 test("lỗi dựng dữ liệu: test fail mà lỗi nằm trong run.setupPaths → setup, báo cáo tách mục riêng", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-setup-"));
-  fs.cpSync(path.join(KIT, "cli/test/fixtures/repo-v1"), dir, { recursive: true });
+  fs.cpSync(path.join(KIT, "cli/test/fixtures/repo-taf"), dir, { recursive: true });
   const cfg = await loadProject({ root: dir });
   const failed = (title, file) => ({
     title,
@@ -142,7 +142,7 @@ test("lỗi dựng dữ liệu: test fail mà lỗi nằm trong run.setupPaths �
 });
 
 test("issue theo dõi: đỏ → mở; đỏ tiếp → cập nhật + comment fail mới / đã hết; xanh → đóng; xanh không issue → không làm gì", async () => {
-  const cfg = await loadProject({ root: path.join(KIT, "cli/test/fixtures/repo-v1") });
+  const cfg = await loadProject({ root: path.join(KIT, "cli/test/fixtures/repo-taf") });
   assert.equal(trackLabel(cfg, "dev"), "e2e:dev");
   const report = (titles, setup = []) => ({
     createdAt: "2026-11-18T01:00:00Z",
@@ -157,7 +157,7 @@ test("issue theo dõi: đỏ → mở; đỏ tiếp → cập nhật + comment f
   assert.ok(c.body.startsWith(trackMarker("dev")));
   assert.match(c.body, /### Test fail \(1\)[\s\S]*\| A \|/);
   assert.match(c.body, /### Lỗi dựng dữ liệu \(1\)[\s\S]*\| B \|/);
-  assert.match(c.body, /\/e2e-triage 1/);
+  assert.match(c.body, /\/kit:e2e-triage 1/);
   assert.match(c.body, /Đỏ từ:\*\* commit `abcdef1`/);
 
   const open = { id: 7, body: c.body };

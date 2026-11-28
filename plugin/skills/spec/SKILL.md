@@ -1,0 +1,13 @@
+---
+name: spec
+description: Phỏng vấn rồi ghi yêu cầu vào đúng tài liệu spec của repo (trạng thái nháp)
+argument-hint: <mô tả ngắn việc cần làm>
+disable-model-invocation: true
+---
+Người dùng muốn làm: $ARGUMENTS
+
+Đọc `<kit>/process/spec.md` rồi làm đúng theo đó với đầu vào trên.
+
+`<kit>` = thư mục gói ai-kit trong dự án: dòng `Kit` khi chạy `npx --no kit context` (thường `node_modules/ai-kit`).
+Lệnh báo không có `kit` (dự án chưa cài gói ai-kit) thì dừng, báo người dùng: `npm install` (gói `ai-kit` trong
+devDependencies), hoặc nhúng kit theo README của ai-kit — không tự cài.

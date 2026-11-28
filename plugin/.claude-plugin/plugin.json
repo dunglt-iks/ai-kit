@@ -1,0 +1,10 @@
+{
+  "name": "kit",
+  "version": "3.0.0",
+  "description": "ai-kit: quy trình spec → prototype → dev → test → ship cho Claude Code (lệnh /kit:*, agent, hook chặn AI tự duyệt). Nội dung quy trình và CLI lấy từ gói ai-kit cài trong dự án.",
+  "author": {
+    "name": "BA Team"
+  },
+  "repository": "https://github.com/dunglt-iks/ai-kit",
+  "license": "UNLICENSED"
+}

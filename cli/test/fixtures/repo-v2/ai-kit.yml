@@ -1,7 +1,6 @@
 # Cấu hình ai-kit của dự án mẫu. Xem ../../docs/11-cau-hinh.md.
 # Đường dẫn tính từ gốc dự án mẫu (fixture test). Khoá trùng mặc định vẫn ghi ra để dễ đọc.
 version: 2
-kitRef: v2
 
 language: vi
 

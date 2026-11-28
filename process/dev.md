@@ -1,26 +1,26 @@
-# Quy trình /dev — triển khai một việc từ spec đã duyệt
+# Quy trình /kit:dev — triển khai một việc từ spec đã duyệt
 
 Đầu vào: đường dẫn file spec + mã (feature `<MOD>-F##`, hoặc mã việc nhỏ), **hoặc** `#<số issue>`. Làm lần lượt
 các giai đoạn; có hai điểm DỪNG bắt buộc chờ người dùng. Ba chế độ, tự xác định ở Giai đoạn 1:
 - **Mới** — việc chưa từng được triển khai.
 - **Đồng bộ** — việc đã triển khai (một phần hoặc toàn bộ), sau đó spec bị sửa. Chỉ sửa code/test ứng với phần
   spec đã đổi, không làm lại cả việc.
-- **Sửa bug** — đầu vào là issue (thường do `/e2e-triage` ghi khi test e2e fail). Spec không đổi; code làm sai spec.
+- **Sửa bug** — đầu vào là issue (thường do `/kit:e2e-triage` ghi khi test e2e fail). Spec không đổi; code làm sai spec.
 
 ## Bước 0 — Nạp hai lớp quy định
 
-1. `node .ai-kit/cli/bin/kit.mjs context`.
+1. `npx --no kit context`.
 2. Đọc các file `guides` mà `kit context` **không** đánh dấu "công cụ đã tự nạp" — bắt buộc trước khi sinh/sửa bất
    kỳ code nào: cấu trúc code, chia lớp và thứ tự phụ thuộc, quy ước đặt tên, migration, đa ngôn ngữ, bảo mật/phân
    quyền, cách viết test, lệnh kiểm.
-3. Đọc `.ai-kit/RULES.md`.
+3. Đọc `<kit>/RULES.md`.
 
 Code thế nào theo guides; spec, kế hoạch, truy vết, e2e theo kit (RULES §1). Mâu thuẫn thì hỏi.
 
 ## Giai đoạn 1 — Hiểu yêu cầu
 
 - Đọc đúng phần spec của mã (`kit spec <mã>` cho vị trí; feature thì đọc cả PRD lẫn FSD của module). Mã không
-  tồn tại, hoặc thiếu tiêu chí chấp nhận kiểm chứng được → DỪNG, nêu cần làm rõ gì (`/spec` nếu chưa có spec).
+  tồn tại, hoặc thiếu tiêu chí chấp nhận kiểm chứng được → DỪNG, nêu cần làm rõ gì (`/kit:spec` nếu chưa có spec).
 - **Sẵn sàng:** feature phải qua `kit ready <mã>` — spec đã duyệt, prototype đã duyệt và còn khớp màn hình trong
   spec (nếu feature có giao diện và PRD theo dõi prototype), mã không bị khai trùng. Chưa qua → DỪNG, chép đúng
   lý do `kit ready` báo (vd "chạy `kit approve <mã>`") — cả ở chế độ đồng bộ. Việc nhỏ (`spec.smallItem`) không
@@ -29,14 +29,14 @@ Code thế nào theo guides; spec, kế hoạch, truy vết, e2e theo kit (RULES
   issue (TAF ghi `feature:<MÃ>`, mã TC, file:dòng, lỗi). Đọc TC và phần spec tương ứng, tái hiện bằng
   `kit e2e <MÃ> --no-gate --base-url <địa chỉ app ở máy>`. Không tái hiện được → báo, hỏi. Rồi đi thẳng Giai đoạn 2 với kế hoạch
   ngắn (nguyên nhân, chỗ sửa, test chứng minh) — không cần kế hoạch trong `spec.plansDir`. Kết quả cho thấy spec
-  hoặc TC sai chứ không phải code → dừng, đề xuất `/spec` hoặc `/testcase`. Commit / PR ghi `Fixes #<số>`.
+  hoặc TC sai chứ không phải code → dừng, đề xuất `/kit:spec` hoặc `/kit:testcase`. Commit / PR ghi `Fixes #<số>`.
 - **Chế độ:** tra `progress.file` (nếu có) và kế hoạch cũ `<spec.plansDir>/<mã-kebab>*.md`. Chưa bắt đầu và
   không có kế hoạch cũ → **mới**. Đã có tiến độ khác `progress.values.todo` hoặc có kế hoạch cũ → **đồng bộ**,
   làm thêm Giai đoạn 1b. Nói rõ chế độ đã chọn; tín hiệu mâu thuẫn (vd tiến độ ghi chưa bắt đầu nhưng đã có
   code) thì hỏi.
 - **Test case e2e:** `kit gate <mã>`. Đã có TC đã duyệt → tester chạy e2e theo TC ở Giai đoạn 4 (thiếu script thì
-  gợi ý `/e2e-script <mã>` trước). Chưa có TC, TC lỗi thời hay thiếu script (gate đỏ) → **không chặn** `/dev`, nhưng nói rõ và gợi ý `/testcase <mã>`
-  (thứ tự khuyến nghị: `/testcase` → `/e2e-script` → `/dev`).
+  gợi ý `/kit:e2e-script <mã>` trước). Chưa có TC, TC lỗi thời hay thiếu script (gate đỏ) → **không chặn** `/kit:dev`, nhưng nói rõ và gợi ý `/kit:testcase <mã>`
+  (thứ tự khuyến nghị: `/kit:testcase` → `/kit:e2e-script` → `/kit:dev`).
 - Tìm hiểu code liên quan; tìm rộng thì giao subagent tìm kiếm và chỉ nhận tóm tắt.
 
 ## Giai đoạn 1b — Chỉ chế độ đồng bộ: phần spec đã đổi
@@ -66,7 +66,7 @@ hay "tiện tay sửa" phần spec không đổi.
 - Migration/thay đổi dữ liệu và cách giữ an toàn dữ liệu (migration đã merge thì không sửa, tạo cái mới).
 - Văn bản hiển thị mới có phải đi qua cơ chế đa ngôn ngữ của repo không (theo guides).
 - **E2E qua TAF:** feature đã có TC/script (`testcases.dir`, `scripts.dir`) → script nào bị ảnh hưởng; chưa có
-  TC → sau khi xong cần `/testcase <mã>` để người duyệt, rồi `/e2e-script <mã>`. Không viết e2e tay ở chỗ khác
+  TC → sau khi xong cần `/kit:testcase <mã>` để người duyệt, rồi `/kit:e2e-script <mã>`. Không viết e2e tay ở chỗ khác
   (RULES §5).
 - Thư viện mới (nếu có) và lý do — không thêm khi chưa được duyệt ở bước này.
 - Rủi ro, điểm chưa chắc. Ước lượng nhỏ / vừa / lớn; lớn thì đề xuất chia nhiều PR.
@@ -89,7 +89,7 @@ Tóm tắt kế hoạch 5–10 dòng rồi DỪNG. Không viết code cho tới 
 - Tối đa 3 vòng; vẫn fail thì dừng và báo. Lỗi để lại ngoài phạm vi: hỏi người dùng có ghi issue và đánh dấu lỗi
   đã biết (theo `scripts.guide`) không.
 - Test case lệch spec (gate báo lỗi thời) hoặc chưa có TC: không tự viết/sửa TC — ghi vào báo cáo để người dùng
-  chạy `/testcase <mã>`.
+  chạy `/kit:testcase <mã>`.
 
 ## Giai đoạn 5 — Review (giao subagent `reviewer`)
 
@@ -105,10 +105,10 @@ Tóm tắt kế hoạch 5–10 dòng rồi DỪNG. Không viết code cho tới 
 Chế độ: <mới | đồng bộ v<cũ> → v<mới>>
 Tiêu chí chấp nhận: <x/y đạt> (liệt kê tiêu chí chưa đạt)
 Truy vết: <số mã trong phạm vi có test mang mã / tổng> (liệt kê mã chưa có test)
-E2E (TAF): <mỗi feature: gate ✓/✘, script pass/fail/lỗi đã biết> — việc cần làm: <`/testcase <mã>` (mới | đồng bộ), rồi `/e2e-script <mã>`>
+E2E (TAF): <mỗi feature: gate ✓/✘, script pass/fail/lỗi đã biết> — việc cần làm: <`/kit:testcase <mã>` (mới | đồng bộ), rồi `/kit:e2e-script <mã>`>
 Thay đổi chính: <3–5 dòng>
 Review: <số mục đã sửa / bỏ qua kèm lý do>
 Tài liệu: <đã bump version + Change Log ở tài liệu spec bị sửa chưa; đã cập nhật progress.file chưa>
 Cần kiểm tra thủ công: <những gì test tự động không bao được>
-Bước tiếp theo: kiểm tra thủ công rồi chạy /ship
+Bước tiếp theo: kiểm tra thủ công rồi chạy /kit:ship
 ```

@@ -2,7 +2,7 @@
 
 Bạn là kỹ sư kiểm thử. Một lần chạy e2e có test fail. Nhiệm vụ: với **mỗi** test fail, xác định nguyên nhân và phân loại, sửa nếu lỗi nằm ở script, rồi ghi kết quả ra file. Bạn **không sửa code ứng dụng**.
 
-Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Lệnh CLI: `node .ai-kit/cli/bin/kit.mjs`, gọi tắt `kit`.
+Bạn đang chạy trong **repo dự án** (có `ai-kit.yml`). Lệnh CLI: `npx --no kit`, gọi tắt `kit`.
 
 ## Đầu vào
 

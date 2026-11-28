@@ -192,7 +192,7 @@ export function checkScript(cfg, feature, o = {}) {
       errors.push(`@taf-source trỏ ${src.tc}, phải là ${rel(cfg, tcAbs)}`);
     if (src.hash !== tcHash(tcText))
       errors.push(
-        `@taf-source lệch: test case đã đổi sau khi sinh script (${src.hash} ≠ ${tcHash(tcText)}) — sinh lại (/e2e-script) hoặc \`kit rehash\``,
+        `@taf-source lệch: test case đã đổi sau khi sinh script (${src.hash} ≠ ${tcHash(tcText)}) — sinh lại (/kit:e2e-script) hoặc \`kit rehash\``,
       );
   }
   const { cases } = parseTestcase(cfg, tcText);
@@ -301,7 +301,7 @@ export function changedFiles(cfg, base = "HEAD") {
 /** File đã đổi mà không nằm trong scripts.allowedPaths. */
 /**
  * File đã đổi phải nằm trong scripts.allowedPaths. `triage`: thêm `setup` = file fixture (run.setupPaths) bị đổi —
- * /e2e-triage không tự sửa fixture (dễ "nới fixture cho test xanh", che lỗi app); người đồng ý thì kiểm lại không --triage.
+ * /kit:e2e-triage không tự sửa fixture (dễ "nới fixture cho test xanh", che lỗi app); người đồng ý thì kiểm lại không --triage.
  * @param {any} cfg
  * @param {string} [base]
  * @param {{ triage?: boolean }} [o]
@@ -337,42 +337,4 @@ export function listScripts(cfg) {
       if (f.endsWith(cfg.scripts.ext)) out.push(f.slice(0, -cfg.scripts.ext.length));
   }
   return out.sort();
-}
-
-/** Script nằm phẳng ngay trong scripts.dir (cấu trúc cũ) — tuyệt đối. */
-export function flatScripts(cfg) {
-  if (!cfg.scripts.dir) return [];
-  const dir = path.join(cfg.root, cfg.scripts.dir);
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith(cfg.scripts.ext))
-    .map((e) => path.join(dir, e.name));
-}
-
-/**
- * Dời script phẳng vào <scripts.dir>/<module>/ và sửa import tương đối cho đúng tầng mới.
- * @returns {{ from: string, to: string }[]} đường dẫn tương đối gốc dự án
- */
-export function migrateScripts(cfg, { dryRun = false } = {}) {
-  const moved = [];
-  for (const abs of flatScripts(cfg)) {
-    const feature = path.basename(abs).slice(0, -cfg.scripts.ext.length).toUpperCase();
-    const to = scriptPath(cfg, feature);
-    if (fs.existsSync(to)) continue;
-    moved.push({ from: rel(cfg, abs), to: rel(cfg, to) });
-    if (dryRun) continue;
-    const text = fs
-      .readFileSync(abs, "utf8")
-      .replace(/(from\s+["'])(\.{1,2}\/[^"']+)(["'])/g, (m, a, p, b) => {
-        const target = path.resolve(path.dirname(abs), p);
-        let r = path.relative(path.dirname(to), target).split(path.sep).join("/");
-        if (!r.startsWith(".")) r = `./${r}`;
-        return `${a}${r}${b}`;
-      });
-    fs.mkdirSync(path.dirname(to), { recursive: true });
-    fs.writeFileSync(to, text);
-    fs.rmSync(abs);
-  }
-  return moved;
 }
